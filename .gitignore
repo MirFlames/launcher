@@ -1,0 +1,26 @@
+# Gradle
+.gradle/
+build/
+bin/
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Build reports
+**/reports/
+**/problems-report.html
+
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Cursor (опционально)
+# .cursor/

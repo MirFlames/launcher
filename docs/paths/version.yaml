@@ -1,0 +1,21 @@
+# GET /api/version - Информация о версии игры
+get:
+  tags:
+    - Version
+  summary: Получить информацию о версии игры
+  description: |
+    Возвращает конфигурацию Minecraft:
+    - версия Fabric Loader / Minecraft
+    - список обязательных файлов клиента
+    - список модов с URL и хешами
+    - агрегированный хеш модов
+  operationId: getVersion
+  responses:
+    '200':
+      description: Успешный ответ
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/version.yaml#/ServerInfo'
+    '405':
+      description: Метод не разрешён

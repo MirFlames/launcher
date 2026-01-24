@@ -1,0 +1,32 @@
+# Схемы для API лаунчера
+
+LauncherVersion:
+  type: object
+  description: Информация о версии лаунчера и возможности обновления
+  required:
+    - version
+    - download_url
+    - mandatory
+  properties:
+    version:
+      type: string
+      description: Номер версии лаунчера
+      example: "1.0.0"
+    download_url:
+      type: string
+      format: uri
+      description: URL для скачивания обновления
+      example: "https://example.com/launcher/launcher-1.0.0.exe"
+    hash:
+      type: string
+      description: SHA-256 хеш исполняемого файла (опционально)
+    size:
+      type: integer
+      format: int64
+      description: Размер файла в байтах
+    release_notes:
+      type: string
+      description: Описание изменений в релизе
+    mandatory:
+      type: boolean
+      description: Обязательное ли обновление

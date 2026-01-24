@@ -1,0 +1,5 @@
+rootProject.name = 'launcher-monorepo'
+
+include 'launcher'
+include 'updater'
+include 'backend'

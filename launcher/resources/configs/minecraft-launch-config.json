@@ -1,0 +1,73 @@
+{
+  "environment": {
+    "javaExecutable": "/jre_default/jdk-21.0.2/bin/java.exe"
+  },
+
+  "classpath": {
+    "libraries": [
+      {
+        "groupId": "net.fabricmc",
+        "artifactId": "fabric-loader",
+        "version": "0.15.11",
+        "classifier": null,
+        "path": "C:/Users/User/AppData/Roaming/.minecraft/libraries/net/fabricmc/fabric-loader/0.15.11/fabric-loader-0.15.11.jar"
+      },
+      {
+        "groupId": "net.fabricmc",
+        "artifactId": "fabric-loader-junit",
+        "version": "0.15.11",
+        "classifier": null,
+        "path": "C:/Users/User/AppData/Roaming/.minecraft/libraries/net/fabricmc/fabric-loader-junit/0.15.11/fabric-loader-junit-0.15.11.jar"
+      },
+      {
+        "groupId": "com.github.oshi",
+        "artifactId": "oshi-core",
+        "version": "6.4.4",
+        "classifier": null,
+        "path": "C:/Users/User/AppData/Roaming/.minecraft/libraries/com/github/oshi/oshi-core/6.4.4/oshi-core-6.4.4.jar"
+      },
+      {
+        "groupId": "io.netty",
+        "artifactId": "netty-all",
+        "version": "4.1.97.Final",
+        "classifier": null,
+        "path": "C:/Users/User/AppData/Roaming/.minecraft/libraries/io/netty/netty-all/4.1.97.Final/netty-all-4.1.97.Final.jar"
+      },
+      {
+        "groupId": "org.lwjgl",
+        "artifactId": "lwjgl",
+        "version": "3.3.3",
+        "classifier": "natives-windows",
+        "path": "C:/Users/User/AppData/Roaming/.minecraft/libraries/org/lwjgl/lwjgl/3.3.3/lwjgl-3.3.3-natives-windows.jar"
+      }
+    ],
+
+    "extraJars": [
+      "modpack.jar",
+      "fabric-loader.jar"
+    ]
+  },
+
+  "launchArguments": {
+    "mainClass": "net.fabricmc.loader.impl.launch.knot.KnotClient",
+
+    "jvmArguments": [
+      "-Xmx4G",
+      "-Xms1G",
+      "-Djava.library.path=C:/Users/User/AppData/Roaming/.minecraft/natives",
+      "-Dminecraft.launcher.brand=custom",
+      "-Dminecraft.launcher.version=1.0"
+    ],
+
+    "gameArguments": {
+      "username": "OfflinePlayer",
+      "version": "1.21.1",
+      "gameDir": "C:/Users/User/AppData/Roaming/.minecraft",
+      "assetsDir": "C:/Users/User/AppData/Roaming/.minecraft/assets",
+      "assetIndex": "29",
+      "uuid": "00000000-0000-0000-0000-000000000000",
+      "userType": "legacy",
+      "versionType": "fabric"
+    }
+  }
+}

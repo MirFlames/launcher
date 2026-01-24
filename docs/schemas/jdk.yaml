@@ -1,0 +1,26 @@
+# Схемы для API JDK
+
+JDKInfo:
+  type: object
+  description: Информация о требуемом JDK для запуска Minecraft
+  required:
+    - version
+    - relative_path
+    - java_executable
+    - mandatory
+  properties:
+    version:
+      type: string
+      description: Идентификатор версии JDK
+      example: "21" или "jdk-21.0.2"
+    relative_path:
+      type: string
+      description: Относительный путь к JDK от папки Minecraft
+      example: "jre_default\\jdk"
+    java_executable:
+      type: string
+      description: Путь к java.exe относительно корня JDK
+      example: "bin\\java.exe"
+    mandatory:
+      type: boolean
+      description: Обязательна ли установка данного JDK

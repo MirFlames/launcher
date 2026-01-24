@@ -1,0 +1,79 @@
+// Корневой build.gradle для монорепозитория
+plugins {
+    id 'base'
+}
+
+allprojects {
+    group = 'com.launcher'
+    version = '1.0.0'
+    
+    repositories {
+        mavenCentral()
+    }
+}
+
+subprojects {
+    // Применяем Java plugin только к Java модулям
+    if (project.name != 'backend') {
+        apply plugin: 'java'
+        
+        java {
+            sourceCompatibility = JavaVersion.VERSION_21
+            targetCompatibility = JavaVersion.VERSION_21
+        }
+    }
+}
+
+// Задача для сборки всех компонентов
+task buildAll {
+    group = 'build'
+    description = 'Собирает все компоненты: launcher.exe, updater.exe, backend.exe'
+    dependsOn ':launcher:nativeCompile', ':updater:nativeCompile', ':backend:goBuild'
+    
+    doLast {
+        println "✓ Все компоненты собраны"
+    }
+}
+
+// Задача для создания дистрибутива
+task distZip(type: Zip) {
+    group = 'distribution'
+    description = 'Создает ZIP архив с launcher.exe, updater.exe и всеми необходимыми DLL файлами'
+    dependsOn ':launcher:nativeCompile', ':updater:nativeCompile', ':launcher:copyConfigsToNativeImage'
+    
+    archiveBaseName = 'launcher-dist'
+    archiveVersion = project.version
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE  // launcher и updater имеют общие DLL (awt.dll и др.) — оставляем первый
+    
+    // Копируем все файлы из launcher (exe, dll, configs)
+    from(project(':launcher').file("${project(':launcher').buildDir}/native/nativeCompile")) {
+        // Включаем exe и все dll файлы
+        include '*.exe'
+        include '*.dll'
+        // Включаем конфигурационные файлы
+        include 'configs/**'
+        into 'launcher'
+        // Исключаем временные файлы
+        exclude '*.args'
+        exclude '*.log'
+        exclude 'reports/**'
+    }
+    
+    // Копируем все файлы из updater (exe, dll)
+    from(project(':updater').file("${project(':updater').buildDir}/native/nativeCompile")) {
+        // Включаем exe и все dll файлы
+        include '*.exe'
+        include '*.dll'
+        into 'launcher'
+        // Исключаем временные файлы
+        exclude '*.args'
+        exclude '*.log'
+        exclude 'reports/**'
+    }
+    
+    // Создать структуру папок
+    doLast {
+        println "✓ Дистрибутив создан: ${archiveFile.get().asFile.absolutePath}"
+        println "  Включены: launcher.exe, updater.exe, все DLL файлы и конфигурации"
+    }
+}

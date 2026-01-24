@@ -1,0 +1,405 @@
+plugins {
+    id 'java'
+    id 'application'
+    id 'org.graalvm.buildtools.native' version '0.10.3'
+}
+
+// group и version наследуются от корневого build.gradle
+
+sourceSets {
+    main {
+        resources {
+            srcDirs = ['src/main/resources', 'resources']
+        }
+    }
+}
+
+dependencies {
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.15.2'
+    implementation 'org.slf4j:slf4j-api:2.0.9'
+    implementation 'ch.qos.logback:logback-classic:1.4.14'
+}
+
+// repositories наследуются от корневого build.gradle
+
+application {
+    mainClass = 'com.launcher.LauncherFrame'
+}
+
+jar {
+    manifest {
+        attributes(
+            'Main-Class': 'com.launcher.LauncherFrame'
+        )
+    }
+}
+
+// Fat jar только для jpackage (если нужен)
+task fatJar(type: Jar) {
+    dependsOn classes
+    archiveClassifier = 'all'
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    with jar
+}
+
+// ============================================================================
+// Генерация конфигурации для GraalVM native-image с помощью агента
+// ============================================================================
+// Использование:
+//   1. Запустите: gradlew generateNativeImageConfig
+//   2. Приложение откроется - протестируйте все функции (откройте окна, нажмите кнопки и т.д.)
+//   3. Закройте приложение (закройте окно или Ctrl+C в консоли)
+//   4. Конфигурация будет сохранена в build/native-image-config/
+//   5. Скопируйте конфигурацию: gradlew copyNativeImageConfig
+//   6. Пересоберите native-image: gradlew nativeCompile
+//
+// Агент автоматически отследит все JNI вызовы, reflection, ресурсы и сгенерирует
+// необходимые конфигурационные файлы (jni-config.json, reflect-config.json и т.д.)
+// ============================================================================
+
+// Задача для генерации конфигурации native-image с помощью агента GraalVM
+task generateNativeImageConfig(type: JavaExec) {
+    dependsOn fatJar
+    group = 'native'
+    description = 'Генерирует конфигурацию для GraalVM native-image с помощью агента'
+    
+    def configOutputDir = file("${buildDir}/native-image-config")
+    def fatJarFile = fatJar.archiveFile.get().asFile
+    
+    // Очищаем старую конфигурацию
+    doFirst {
+        delete configOutputDir
+        configOutputDir.mkdirs()
+        println "Генерация конфигурации native-image..."
+        println "JAR файл: ${fatJarFile.absolutePath}"
+        println "Выходная директория: ${configOutputDir.absolutePath}"
+        println ""
+        println "ВАЖНО: Запустите приложение и выполните все действия, которые должны быть доступны в native-image."
+        println "После этого закройте приложение (Ctrl+C или закройте окно)."
+        println "Конфигурация будет сохранена в: ${configOutputDir.absolutePath}"
+        println ""
+    }
+    
+    classpath = files(fatJarFile)
+    mainClass = 'com.launcher.LauncherFrame'
+    
+    // Настройки агента GraalVM
+    // Агент принимает пути с обратными слешами в Windows
+    jvmArgs = [
+        "-agentlib:native-image-agent=config-output-dir=${configOutputDir.absolutePath}",
+        "-Djava.awt.headless=false"
+    ]
+    
+    // Обработка завершения
+    doLast {
+        println ""
+        println "✓ Конфигурация сгенерирована в: ${configOutputDir.absolutePath}"
+        println ""
+        println "Следующие шаги:"
+        println "1. Проверьте сгенерированные файлы в: ${configOutputDir.absolutePath}"
+        println "2. Скопируйте нужные файлы в: src/main/resources/META-INF/native-image/"
+        println "   - jni-config.json"
+        println "   - reflect-config.json (объедините с существующим)"
+        println "   - resource-config.json (объедините с существующим)"
+        println "   - proxy-config.json (если есть)"
+        println ""
+        println "Или используйте задачу: gradlew copyNativeImageConfig"
+    }
+}
+
+// Задача для копирования сгенерированной конфигурации в ресурсы
+task copyNativeImageConfig(type: Copy) {
+    dependsOn generateNativeImageConfig
+    group = 'native'
+    description = 'Копирует сгенерированную конфигурацию в src/main/resources/META-INF/native-image/'
+    
+    def configOutputDir = file("${buildDir}/native-image-config")
+    def targetDir = file("src/main/resources/META-INF/native-image")
+    
+    from configOutputDir
+    into targetDir
+    
+    // Объединяем reflect-config.json с существующим
+    doLast {
+        def generatedReflect = new File(configOutputDir, "reflect-config.json")
+        def existingReflect = new File(targetDir, "reflect-config.json")
+        
+        if (generatedReflect.exists() && existingReflect.exists()) {
+            println "Объединение reflect-config.json..."
+            def generated = new groovy.json.JsonSlurper().parse(generatedReflect)
+            def existing = new groovy.json.JsonSlurper().parse(existingReflect)
+            
+            // Объединяем массивы, убирая дубликаты
+            def combined = (existing + generated).unique { it.name }
+            
+            def jsonBuilder = new groovy.json.JsonBuilder(combined)
+            existingReflect.text = jsonBuilder.toPrettyString()
+            println "✓ reflect-config.json объединен"
+        }
+        
+        // Объединяем resource-config.json с существующим
+        def generatedResource = new File(configOutputDir, "resource-config.json")
+        def existingResource = new File(targetDir, "resource-config.json")
+        
+        if (generatedResource.exists() && existingResource.exists()) {
+            println "Объединение resource-config.json..."
+            def generated = new groovy.json.JsonSlurper().parse(generatedResource)
+            def existing = new groovy.json.JsonSlurper().parse(existingResource)
+            
+            // Объединяем ресурсы
+            if (generated.resources && generated.resources.includes) {
+                if (!existing.resources) {
+                    existing.resources = [:]
+                }
+                if (!existing.resources.includes) {
+                    existing.resources.includes = []
+                }
+                existing.resources.includes.addAll(generated.resources.includes)
+                existing.resources.includes = existing.resources.includes.unique()
+            }
+            
+            def jsonBuilder = new groovy.json.JsonBuilder(existing)
+            existingResource.text = jsonBuilder.toPrettyString()
+            println "✓ resource-config.json объединен"
+        }
+        
+        println ""
+        println "✓ Конфигурация скопирована в: ${targetDir.absolutePath}"
+        println "Теперь можно пересобрать native-image: gradlew nativeCompile"
+    }
+}
+
+graalvmNative {
+    binaries {
+        main {
+            imageName = 'launcher'
+            mainClass = 'com.launcher.LauncherFrame'
+            debug = false
+            verbose = true
+            
+            buildArgs.addAll([
+                // Отключаем headless режим для AWT
+                '-Djava.awt.headless=false',
+                // Подробные логи для отладки
+                '-H:+ReportExceptionStackTraces',
+                '-H:+PrintClassInitialization',
+                // Включаем ресурсы
+                '-H:IncludeResources=.*\\.(png|json|xml)$',
+                '-H:IncludeResources=.*\\.properties$',
+                // Протоколы
+                '--enable-url-protocols=http,https,file',
+                // Безопасность
+                '--enable-all-security-services',
+                // JNI для AWT (критично!)
+                '-H:+JNI',
+                // Charsets
+                '-H:+AddAllCharsets',
+                // URL протоколы
+                '-H:EnableURLProtocols=http,https,file',
+                // AWT/Swing инициализация во время выполнения (критично!)
+                // Важно: инициализируем все AWT классы во время выполнения
+                '--initialize-at-run-time=sun.awt',
+                '--initialize-at-run-time=java.awt',
+                '--initialize-at-run-time=javax.swing',
+                '--initialize-at-run-time=sun.java2d',
+                '--initialize-at-run-time=sun.font',
+                '--initialize-at-run-time=sun.lwawt',
+                '--initialize-at-run-time=java.awt.Toolkit',
+                '--initialize-at-run-time=java.awt.GraphicsEnvironment',
+                '--initialize-at-run-time=java.awt.GraphicsDevice',
+                '--initialize-at-run-time=sun.awt.AWTAutoShutdown',
+                '--initialize-at-run-time=sun.java2d.SunGraphics2D',
+                '--initialize-at-run-time=sun.awt.windows',
+                '--initialize-at-run-time=sun.java2d.windows',
+                // Инициализация классов во время выполнения для избежания проблем с потоками
+                '-H:ClassInitialization=sun.awt:run_time',
+                '-H:ClassInitialization=java.awt:run_time',
+                '-H:ClassInitialization=javax.swing:run_time',
+                '-H:ClassInitialization=sun.java2d:run_time',
+                '-H:ClassInitialization=sun.font:run_time',
+                '-H:ClassInitialization=sun.lwawt:run_time',
+                // Дополнительные настройки для Windows AWT
+                '-H:+AllowDeprecatedBuilderClassesOnImageClasspath',
+                // Включаем все JNI методы для AWT (используем Resources для файлов в META-INF)
+                '-H:JNIConfigurationResources=META-INF/native-image/jni-config.json',
+                // Включаем все native методы для AWT
+                '-H:+AllowVMInspection',
+                // Отключаем проверку методов во время сборки для AWT
+                '-H:-CheckToolchain'
+            ])
+        }
+    }
+}
+
+// Задача для удаления консольного окна через editbin.exe
+// Выполняется автоматически после nativeCompile, если editbin.exe доступен
+task removeConsoleWindow {
+    dependsOn nativeCompile
+    group = 'native'
+    description = 'Удаляет консольное окно из native-image используя editbin.exe'
+    
+    def nativeExe = file("${buildDir}/native/nativeCompile/launcher.exe")
+    
+    doLast {
+        if (!nativeExe.exists()) {
+            println "⚠ Исполняемый файл не найден: ${nativeExe.absolutePath}"
+            return
+        }
+        
+        // Пытаемся найти editbin.exe через команду where (Windows)
+        try {
+            def whereProcess = new ProcessBuilder('where', 'editbin.exe').start()
+            def reader = new BufferedReader(new InputStreamReader(whereProcess.inputStream))
+            def editbinPath = reader.readLine()
+            def errorReader = new BufferedReader(new InputStreamReader(whereProcess.errorStream))
+            whereProcess.waitFor()
+            
+            if (editbinPath == null || editbinPath.isEmpty()) {
+                println ""
+                println "⚠ editbin.exe не найден в PATH."
+                println "   Консольное окно останется при запуске приложения."
+                println ""
+                println "   Для удаления консольного окна:"
+                println "   1. Установите Visual Studio или Windows SDK"
+                println "   2. Добавьте editbin.exe в PATH, или"
+                println "   3. Выполните вручную:"
+                println "      editbin.exe /SUBSYSTEM:WINDOWS \"${nativeExe.absolutePath}\""
+                println ""
+                return
+            }
+            
+            // Выполняем editbin для изменения подсистемы
+            println "Удаление консольного окна из ${nativeExe.name}..."
+            def editbinProcess = new ProcessBuilder(editbinPath, '/SUBSYSTEM:WINDOWS', nativeExe.absolutePath)
+                .redirectErrorStream(true)
+                .start()
+            
+            def output = new StringBuilder()
+            def outputReader = new BufferedReader(new InputStreamReader(editbinProcess.inputStream))
+            String line
+            while ((line = outputReader.readLine()) != null) {
+                output.append(line).append('\n')
+            }
+            editbinProcess.waitFor()
+            
+            if (editbinProcess.exitValue() == 0) {
+                println "✓ Консольное окно успешно удалено из launcher.exe"
+            } else {
+                println "⚠ Не удалось удалить консольное окно:"
+                println output.toString()
+            }
+        } catch (Exception e) {
+            println "⚠ Не удалось найти или выполнить editbin.exe: ${e.message}"
+            println "   Консольное окно останется при запуске приложения."
+        }
+    }
+}
+
+// Автоматически выполняем removeConsoleWindow после nativeCompile
+tasks.named('nativeCompile').configure {
+    finalizedBy 'removeConsoleWindow'
+}
+
+// ============================================================================
+// Копирование конфигурационных файлов в папку с исполняемым файлом
+// ============================================================================
+
+// Копирование конфигов для native-image (после nativeCompile)
+task copyConfigsToNativeImage(type: Copy) {
+    dependsOn nativeCompile
+    group = 'build'
+    description = 'Копирует конфигурационные файлы в папку с native-image исполняемым файлом'
+    
+    def sourceDir = file('resources/configs')
+    def targetDir = file("${buildDir}/native/nativeCompile/configs")
+    
+    from sourceDir
+    into targetDir
+    
+    doLast {
+        println "✓ Конфигурационные файлы скопированы в: ${targetDir.absolutePath}"
+    }
+}
+
+// Копирование конфигов для JAR (после jar)
+task copyConfigsToJar(type: Copy) {
+    dependsOn jar
+    group = 'build'
+    description = 'Копирует конфигурационные файлы в папку с JAR файлом'
+    
+    def sourceDir = file('resources/configs')
+    def targetDir = file("${buildDir}/libs/configs")
+    
+    from sourceDir
+    into targetDir
+    
+    doLast {
+        println "✓ Конфигурационные файлы скопированы в: ${targetDir.absolutePath}"
+    }
+}
+
+// Автоматически копируем конфиги после сборки
+tasks.named('nativeCompile').configure {
+    finalizedBy 'copyConfigsToNativeImage'
+}
+
+tasks.named('jar').configure {
+    finalizedBy 'copyConfigsToJar'
+}
+
+// Альтернатива: jpackage для создания нативного установщика с JRE
+// Работает лучше для Swing приложений, чем GraalVM Native Image
+task jpackage(type: Exec) {
+    dependsOn jar
+    group = 'distribution'
+    description = 'Создает нативный установщик через jpackage (требует JDK 14+)'
+    
+    def jpackageHome = System.getenv('JAVA_HOME')
+    if (jpackageHome == null) {
+        throw new GradleException('JAVA_HOME не установлен. Установите JAVA_HOME на JDK 14+')
+    }
+    
+    def jpackageExe = new File(jpackageHome, 'bin/jpackage.exe')
+    if (!jpackageExe.exists()) {
+        throw new GradleException("jpackage не найден в $jpackageHome. Убедитесь, что используется JDK 14+")
+    }
+    
+    def jarFile = jar.archiveFile.get().asFile
+    def outputDir = file("${buildDir}/jpackage")
+    
+    // Удаляем старую сборку если существует
+    doFirst {
+        delete outputDir
+        println "Создание jpackage образа..."
+        println "JAVA_HOME: $jpackageHome"
+        println "JAR файл: $jarFile"
+        println "Выходная директория: $outputDir"
+    }
+    
+    commandLine jpackageExe,
+        '--input', "${buildDir}/libs",
+        '--name', 'launcher',
+        '--main-jar', jarFile.name,
+        '--main-class', 'com.launcher.LauncherFrame',
+        '--type', 'app-image',
+        '--dest', outputDir,
+        '--java-options', '-Xmx512m',
+        '--java-options', '-Dfile.encoding=UTF-8',
+        '--app-version', project.version,
+        '--vendor', 'Launcher',
+        '--description', 'Minecraft Launcher',
+        '--win-console'  // Показывать консоль для отладки
+    
+    // Обработка ошибок
+    doLast {
+        def exeFile = new File(outputDir, "launcher/launcher.exe")
+        if (exeFile.exists()) {
+            println "✓ Успешно создан: ${exeFile.absolutePath}"
+        } else {
+            throw new GradleException("Ошибка: исполняемый файл не создан в ${exeFile.absolutePath}")
+        }
+    }
+}

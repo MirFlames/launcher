@@ -1,0 +1,19 @@
+# GET /api/launcher/version - Информация о версии лаунчера
+get:
+  tags:
+    - Launcher
+  summary: Получить информацию о версии лаунчера
+  description: |
+    Используется для проверки обновлений лаунчера.
+    Клиент сравнивает локальную версию с version и при необходимости
+    скачивает обновление по download_url.
+  operationId: getLauncherVersion
+  responses:
+    '200':
+      description: Успешный ответ
+      content:
+        application/json:
+          schema:
+            $ref: '../schemas/launcher.yaml#/LauncherVersion'
+    '405':
+      description: Метод не разрешён

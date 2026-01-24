@@ -1,0 +1,80 @@
+plugins {
+    id 'java'
+    id 'application'
+    id 'org.graalvm.buildtools.native' version '0.10.3'
+}
+
+// group и version наследуются от корневого build.gradle
+
+dependencies {
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.15.2'
+    implementation 'org.slf4j:slf4j-api:2.0.9'
+    implementation 'ch.qos.logback:logback-classic:1.4.14'
+}
+
+application {
+    mainClass = 'com.launcher.updater.UpdaterMain'
+}
+
+graalvmNative {
+    binaries {
+        main {
+            imageName = 'updater'
+            mainClass = 'com.launcher.updater.UpdaterMain'
+            debug = false
+            verbose = true
+            
+            buildArgs.addAll([
+                '-H:+ReportExceptionStackTraces',
+                '--enable-url-protocols=http,https',
+                '-H:+JNI',
+                '-H:+AllowVMInspection',
+                '-H:IncludeResources=.*\\.(xml|properties)$'
+            ])
+        }
+    }
+}
+
+// Задача для удаления консольного окна (аналогично launcher)
+task removeConsoleWindow {
+    dependsOn nativeCompile
+    group = 'native'
+    description = 'Удаляет консольное окно из updater.exe используя editbin.exe'
+    
+    def nativeExe = file("${buildDir}/native/nativeCompile/updater.exe")
+    
+    doLast {
+        if (!nativeExe.exists()) {
+            println "⚠ Исполняемый файл не найден: ${nativeExe.absolutePath}"
+            return
+        }
+        
+        try {
+            def whereProcess = new ProcessBuilder('where', 'editbin.exe').start()
+            def reader = new BufferedReader(new InputStreamReader(whereProcess.inputStream))
+            def editbinPath = reader.readLine()
+            whereProcess.waitFor()
+            
+            if (editbinPath == null || editbinPath.isEmpty()) {
+                println "⚠ editbin.exe не найден в PATH. Консольное окно останется."
+                return
+            }
+            
+            println "Удаление консольного окна из updater.exe..."
+            def editbinProcess = new ProcessBuilder(editbinPath, '/SUBSYSTEM:WINDOWS', nativeExe.absolutePath)
+                .redirectErrorStream(true)
+                .start()
+            editbinProcess.waitFor()
+            
+            if (editbinProcess.exitValue() == 0) {
+                println "✓ Консольное окно успешно удалено из updater.exe"
+            }
+        } catch (Exception e) {
+            println "⚠ Не удалось выполнить editbin.exe: ${e.message}"
+        }
+    }
+}
+
+tasks.named('nativeCompile').configure {
+    finalizedBy 'removeConsoleWindow'
+}

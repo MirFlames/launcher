@@ -1,0 +1,16 @@
+{
+  "resources": {
+    "includes": [
+      {
+        "pattern": ".*\\.png$"
+      },
+      {
+        "pattern": ".*\\.json$"
+      },
+      {
+        "pattern": ".*\\.properties$"
+      }
+    ]
+  },
+  "bundles": []
+}

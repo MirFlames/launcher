@@ -1,0 +1,112 @@
+[
+  {
+    "name": "java.awt.Toolkit",
+    "methods": [
+      {"name": "getDefaultToolkit", "parameterTypes": []},
+      {"name": "initIDs", "parameterTypes": []},
+      {"name": "getFontMetrics", "parameterTypes": ["java.awt.Font"]},
+      {"name": "getScreenResolution", "parameterTypes": []},
+      {"name": "getScreenSize", "parameterTypes": []},
+      {"name": "getSystemClipboard", "parameterTypes": []},
+      {"name": "getSystemEventQueue", "parameterTypes": []},
+      {"name": "getSystemSelection", "parameterTypes": []},
+      {"name": "sync", "parameterTypes": []},
+      {"name": "beep", "parameterTypes": []},
+      {"name": "getMenuShortcutKeyMask", "parameterTypes": []},
+      {"name": "getLockingKeyState", "parameterTypes": ["int"]},
+      {"name": "setLockingKeyState", "parameterTypes": ["int", "boolean"]},
+      {"name": "getNativeContainer", "parameterTypes": ["java.awt.Component"]},
+      {"name": "getDesktopProperty", "parameterTypes": ["java.lang.String"]},
+      {"name": "getProperty", "parameterTypes": ["java.lang.String", "java.lang.String"]},
+      {"name": "setDynamicLayout", "parameterTypes": ["boolean"]},
+      {"name": "isDynamicLayoutActive", "parameterTypes": []},
+      {"name": "isFrameStateSupported", "parameterTypes": ["int"]},
+      {"name": "getMaximumCursorColors", "parameterTypes": []},
+      {"name": "getCursorInfo", "parameterTypes": []},
+      {"name": "getPrintJob", "parameterTypes": ["java.awt.Frame", "java.lang.String", "java.util.Properties"]},
+      {"name": "getPrintJob", "parameterTypes": ["java.awt.Frame", "java.lang.String", "java.util.Properties", "java.awt.PrintJobAttributeSet"]},
+      {"name": "getSystemClipboard", "parameterTypes": ["java.lang.String"]},
+      {"name": "getSystemEventQueueImpl", "parameterTypes": []},
+      {"name": "loadSystemColors", "parameterTypes": ["int[]"]},
+      {"name": "mapInputMethodHighlight", "parameterTypes": ["java.awt.im.InputMethodHighlight"]},
+      {"name": "prepareImage", "parameterTypes": ["java.awt.Image", "int", "int", "java.awt.image.ImageObserver"]},
+      {"name": "checkImage", "parameterTypes": ["java.awt.Image", "int", "int", "java.awt.image.ImageObserver"]},
+      {"name": "createImage", "parameterTypes": ["byte[]"]},
+      {"name": "createImage", "parameterTypes": ["java.awt.image.ImageProducer"]},
+      {"name": "createImage", "parameterTypes": ["java.net.URL"]},
+      {"name": "createImage", "parameterTypes": ["java.lang.String"]},
+      {"name": "createImage", "parameterTypes": ["byte[]", "int", "int"]},
+      {"name": "createCustomCursor", "parameterTypes": ["java.awt.Image", "java.awt.Point", "java.lang.String"]},
+      {"name": "getBestCursorSize", "parameterTypes": ["int", "int"]},
+      {"name": "getMenuShortcutKeyMaskEx", "parameterTypes": []},
+      {"name": "areExtraMouseButtonsEnabled", "parameterTypes": []},
+      {"name": "setExtraMouseButtonsEnabled", "parameterTypes": ["boolean"]}
+    ]
+  },
+  {
+    "name": "java.awt.GraphicsEnvironment",
+    "methods": [
+      {"name": "getLocalGraphicsEnvironment", "parameterTypes": []},
+      {"name": "initIDs", "parameterTypes": []},
+      {"name": "getAllFonts", "parameterTypes": []},
+      {"name": "getAvailableFontFamilyNames", "parameterTypes": []},
+      {"name": "getAvailableFontFamilyNames", "parameterTypes": ["java.util.Locale"]}
+    ]
+  },
+  {
+    "name": "sun.awt.windows.WToolkit",
+    "methods": [
+      {"name": "<init>", "parameterTypes": []},
+      {"name": "getDefaultToolkit", "parameterTypes": []},
+      {"name": "getFontMetrics", "parameterTypes": ["java.awt.Font"]},
+      {"name": "initIDs", "parameterTypes": []}
+    ]
+  },
+  {
+    "name": "sun.java2d.windows.WindowsGraphicsEnvironment",
+    "methods": [
+      {"name": "<init>", "parameterTypes": []},
+      {"name": "getLocalGraphicsEnvironment", "parameterTypes": []}
+    ]
+  },
+  {
+    "name": "sun.lwawt.LWComponentPeer",
+    "methods": [
+      {"name": "<init>", "parameterTypes": []}
+    ]
+  },
+  {
+    "name": "sun.java2d.SunGraphics2D",
+    "methods": [
+      {"name": "<init>", "parameterTypes": []}
+    ]
+  },
+  {
+    "name": "java.awt.Component",
+    "methods": [
+      {"name": "<init>", "parameterTypes": []},
+      {"name": "getFontMetrics", "parameterTypes": ["java.awt.Font"]}
+    ]
+  },
+  {
+    "name": "java.awt.FontMetrics",
+    "methods": [
+      {"name": "<init>", "parameterTypes": ["java.awt.Font"]},
+      {"name": "getFont", "parameterTypes": []}
+    ]
+  },
+  {
+    "name": "sun.font.FontDesignMetrics",
+    "methods": [
+      {"name": "<init>", "parameterTypes": []},
+      {"name": "getMetrics", "parameterTypes": ["java.awt.Font"]},
+      {"name": "getMetrics", "parameterTypes": ["java.awt.Font", "java.awt.font.FontRenderContext"]}
+    ]
+  },
+  {
+    "name": "javax.swing.JFrame",
+    "methods": [
+      {"name": "<init>", "parameterTypes": []}
+    ]
+  }
+]
