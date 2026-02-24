@@ -23,4 +23,4 @@ Thumbs.db
 *.log
 
 # Cursor (опционально)
-# .cursor/
+.cursor/
