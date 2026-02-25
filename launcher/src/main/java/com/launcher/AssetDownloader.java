@@ -34,8 +34,13 @@ public final class AssetDownloader {
      * @param assetsDir корень папки assets (gameDir/assets)
      * @param indexFile файл индекса (assets/indexes/29.json)
      * @param parentFrame для отображения прогресса (может быть null)
+     * @param launchProgress overlay прогресса запуска (если не null — используется вместо отдельного диалога)
      */
     public static void ensureAssets(File assetsDir, File indexFile, JFrame parentFrame) {
+        ensureAssets(assetsDir, indexFile, parentFrame, null);
+    }
+
+    public static void ensureAssets(File assetsDir, File indexFile, JFrame parentFrame, LaunchProgress launchProgress) {
         if (!indexFile.exists()) {
             log.warn("Asset index not found: {}", indexFile.getAbsolutePath());
             return;
@@ -73,8 +78,9 @@ public final class AssetDownloader {
 
         log.info("Downloading {} missing assets", toDownload.size());
 
+        final boolean useOverlay = launchProgress != null;
         AtomicReference<ProgressBar> progressBarRef = new AtomicReference<>();
-        if (parentFrame != null) {
+        if (!useOverlay && parentFrame != null) {
             SwingUtilities.invokeLater(() -> {
                 ProgressBar pb = new ProgressBar(parentFrame, "Скачивание ассетов");
                 pb.setVisible(true);
@@ -83,9 +89,13 @@ public final class AssetDownloader {
             while (progressBarRef.get() == null) {
                 try { Thread.sleep(50); } catch (InterruptedException ignored) {}
             }
+        } else if (useOverlay) {
+            launchProgress.setStage("Загрузка ассетов");
+            launchProgress.setIndeterminate(false);
+            launchProgress.setProgress(0);
         }
 
-        ProgressBar progressBar = progressBarRef.get();
+        ProgressBar progressBar = !useOverlay ? progressBarRef.get() : null;
         int total = toDownload.size();
         int[] done = {0};
 
@@ -97,19 +107,23 @@ public final class AssetDownloader {
 
                 if (LibraryDownloader.downloadFile(url, dest, entry.size, null)) {
                     done[0]++;
-                    if (progressBar != null) {
-                        int currentDone = done[0];
-                        SwingUtilities.invokeLater(() -> {
+                    int currentDone = done[0];
+                    String status = String.format("Ассеты: %d / %d", currentDone, total);
+                    SwingUtilities.invokeLater(() -> {
+                        if (useOverlay) {
+                            launchProgress.setProgress((double) currentDone / total);
+                            launchProgress.setStatus(status);
+                        } else if (progressBar != null) {
                             progressBar.setProgress((double) currentDone / total);
-                            progressBar.setStatus(String.format("Ассеты: %d / %d", currentDone, total));
-                        });
-                    }
+                            progressBar.setStatus(status);
+                        }
+                    });
                 } else {
                     log.warn("Failed to download asset: {}", entry.hash);
                 }
             }
         } finally {
-            if (progressBar != null) {
+            if (!useOverlay && progressBar != null) {
                 SwingUtilities.invokeLater(() -> {
                     progressBar.setVisible(false);
                     progressBar.dispose();

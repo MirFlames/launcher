@@ -282,23 +282,19 @@ public class LauncherFrame extends JFrame {
             JButton btn = (JButton) e.getSource();
             if (AuthService.isAuthenticated()) {
                 btn.setEnabled(false);
+                LaunchProgressOverlay progressOverlay = new LaunchProgressOverlay(LauncherFrame.this);
+                SwingUtilities.invokeLater(() -> progressOverlay.setVisible(true));
                 Thread worker = new Thread(() -> {
                     try {
-                        MinecraftLauncher.startMinecraft(LauncherFrame.this);
+                        MinecraftLauncher.startMinecraft(LauncherFrame.this, progressOverlay);
                     } catch (IOException ex) {
                         log.error("Ошибка запуска Minecraft: {}", ex.getMessage(), ex);
-                        SwingUtilities.invokeLater(() -> {
-                            JOptionPane.showMessageDialog(LauncherFrame.this,
-                                "Ошибка запуска Minecraft: " + ex.getMessage(),
-                                "Ошибка", JOptionPane.ERROR_MESSAGE);
-                        });
+                        SwingUtilities.invokeLater(() ->
+                            progressOverlay.fail("Ошибка запуска Minecraft: " + ex.getMessage()));
                     } catch (Exception ex) {
                         log.error("Ошибка запуска Minecraft: {}", ex.getMessage(), ex);
-                        SwingUtilities.invokeLater(() -> {
-                            JOptionPane.showMessageDialog(LauncherFrame.this,
-                                "Ошибка запуска Minecraft: " + ex.getMessage(),
-                                "Ошибка", JOptionPane.ERROR_MESSAGE);
-                        });
+                        SwingUtilities.invokeLater(() ->
+                            progressOverlay.fail("Ошибка запуска Minecraft: " + ex.getMessage()));
                     } finally {
                         SwingUtilities.invokeLater(() -> btn.setEnabled(true));
                     }

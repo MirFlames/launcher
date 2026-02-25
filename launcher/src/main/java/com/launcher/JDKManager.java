@@ -34,9 +34,14 @@ public class JDKManager {
      * Проверяет наличие JDK и устанавливает его при необходимости
      * @param minecraftFolder папка Minecraft (где находится launcher.exe)
      * @param parentFrame родительское окно для прогресс-бара
+     * @param launchProgress overlay прогресса запуска (если не null — используется вместо отдельного диалога)
      * @return путь к java.exe или null если установка не удалась
      */
     public static String ensureJDKInstalled(File minecraftFolder, JFrame parentFrame) {
+        return ensureJDKInstalled(minecraftFolder, parentFrame, null);
+    }
+
+    public static String ensureJDKInstalled(File minecraftFolder, JFrame parentFrame, LaunchProgress launchProgress) {
         try {
             // Получить информацию о требуемом JDK из backend
             JDKInfo jdkInfo = fetchJDKInfo();
@@ -71,21 +76,24 @@ public class JDKManager {
             log.info("JDK не найден или версия отличается. Требуется версия: {}", jdkInfo.version);
             log.info("Путь установки: {}", jdkPath);
             
-            // Показать прогресс-бар на EDT (invokeAndWait). Вызывающий поток выполняет
-            // скачивание/установку — поэтому ensureJDKInstalled должен вызываться НЕ с EDT
-            // (например, startMinecraft в фоновом потоке при нажатии «Играть»).
+            final boolean useOverlay = launchProgress != null;
             AtomicReference<ProgressBar> progressBarRef = new AtomicReference<>();
-            try {
-                SwingUtilities.invokeAndWait(() -> {
-                    ProgressBar pb = new ProgressBar(parentFrame, "Установка JDK");
-                    pb.setStatus("Подготовка к установке JDK...");
-                    pb.setVisible(true);
-                    progressBarRef.set(pb);
-                });
-            } catch (Exception e) {
-                log.error("Не удалось показать прогресс-бар: {}", e.getMessage());
-                JOptionPane.showMessageDialog(parentFrame, "Ошибка отображения прогресса: " + e.getMessage(), "Ошибка", JOptionPane.ERROR_MESSAGE);
-                return null;
+            if (!useOverlay) {
+                try {
+                    SwingUtilities.invokeAndWait(() -> {
+                        ProgressBar pb = new ProgressBar(parentFrame, "Установка JDK");
+                        pb.setStatus("Подготовка к установке JDK...");
+                        pb.setVisible(true);
+                        progressBarRef.set(pb);
+                    });
+                } catch (Exception e) {
+                    log.error("Не удалось показать прогресс-бар: {}", e.getMessage());
+                    JOptionPane.showMessageDialog(parentFrame, "Ошибка отображения прогресса: " + e.getMessage(), "Ошибка", JOptionPane.ERROR_MESSAGE);
+                    return null;
+                }
+            } else {
+                launchProgress.setStatus("Подготовка к установке JDK...");
+                launchProgress.setIndeterminate(false);
             }
             ProgressBar progressBar = progressBarRef.get();
 
@@ -93,50 +101,66 @@ public class JDKManager {
                 File tempDir = new File(System.getProperty("java.io.tmpdir"), "launcher-jdk");
                 tempDir.mkdirs();
 
-                updateProgress(progressBar, "Скачивание JDK...", 0.0);
+                updateProgress(progressBar, launchProgress, "Скачивание JDK...", 0.0, useOverlay);
                 File zipFile = JDKDownloader.downloadJDK(jdkInfo.version, tempDir, p -> {
                     SwingUtilities.invokeLater(() -> {
-                        progressBar.setProgress(p * 0.5);
-                        progressBar.setStatus(String.format("Скачивание JDK... %.1f%%", p * 100));
+                        if (useOverlay) {
+                            launchProgress.setProgress(p * 0.5);
+                            launchProgress.setStatus(String.format("Скачивание JDK... %.1f%%", p * 100));
+                        } else if (progressBar != null) {
+                            progressBar.setProgress(p * 0.5);
+                            progressBar.setStatus(String.format("Скачивание JDK... %.1f%%", p * 100));
+                        }
                     });
                 });
 
                 if (zipFile == null || !zipFile.exists()) {
-                    progressBar.showError("Ошибка скачивания JDK. Проверьте подключение к интернету.");
+                    if (useOverlay) launchProgress.fail("Ошибка скачивания JDK. Проверьте подключение к интернету.");
+                    else progressBar.showError("Ошибка скачивания JDK. Проверьте подключение к интернету.");
                     return null;
                 }
 
-                updateProgress(progressBar, "Установка JDK...", 0.5);
+                updateProgress(progressBar, launchProgress, "Установка JDK...", 0.5, useOverlay);
                 File targetDir = new File(jdkPath);
                 boolean installed = JDKInstaller.installJDK(zipFile, targetDir, p -> {
                     SwingUtilities.invokeLater(() -> {
-                        progressBar.setProgress(0.5 + p * 0.4);
-                        progressBar.setStatus(String.format("Установка JDK... %.1f%%", (0.5 + p * 0.4) * 100));
+                        double prog = 0.5 + p * 0.4;
+                        if (useOverlay) {
+                            launchProgress.setProgress(prog);
+                            launchProgress.setStatus(String.format("Установка JDK... %.1f%%", prog * 100));
+                        } else if (progressBar != null) {
+                            progressBar.setProgress(prog);
+                            progressBar.setStatus(String.format("Установка JDK... %.1f%%", prog * 100));
+                        }
                     });
                 });
 
                 if (!installed) {
-                    progressBar.showError("Ошибка установки JDK.");
+                    if (useOverlay) launchProgress.fail("Ошибка установки JDK.");
+                    else progressBar.showError("Ошибка установки JDK.");
                     return null;
                 }
 
-                updateProgress(progressBar, "Проверка JDK...", 0.9);
+                updateProgress(progressBar, launchProgress, "Проверка JDK...", 0.9, useOverlay);
 
                 if (!JDKVerifier.verifyJDK(javaExePath)) {
-                    progressBar.showError("Установленный JDK не работает корректно.");
+                    if (useOverlay) launchProgress.fail("Установленный JDK не работает корректно.");
+                    else progressBar.showError("Установленный JDK не работает корректно.");
                     return null;
                 }
                 if (!JDKVerifier.verifyJDKVersion(javaExePath, jdkInfo.version)) {
                     log.warn("Версия JDK может не совпадать, но JDK работает");
                 }
 
-                updateProgress(progressBar, "JDK успешно установлен", 1.0);
+                updateProgress(progressBar, launchProgress, "JDK успешно установлен", 1.0, useOverlay);
                 Thread.sleep(500);
 
-                SwingUtilities.invokeAndWait(() -> {
-                    progressBar.setVisible(false);
-                    progressBar.dispose();
-                });
+                if (!useOverlay && progressBar != null) {
+                    SwingUtilities.invokeAndWait(() -> {
+                        progressBar.setVisible(false);
+                        progressBar.dispose();
+                    });
+                }
 
                 JDKInstaller.checkOldJDKVersions(minecraftFolder);
                 updateConfigWithJDKPath(minecraftFolder, javaExePath);
@@ -144,7 +168,8 @@ public class JDKManager {
                 return javaExePath;
             } catch (Exception e) {
                 log.error("Ошибка при установке JDK: {}", e.getMessage(), e);
-                progressBar.showError("Ошибка установки JDK: " + e.getMessage());
+                if (launchProgress != null) launchProgress.fail("Ошибка установки JDK: " + e.getMessage());
+                else if (progressBar != null) progressBar.showError("Ошибка установки JDK: " + e.getMessage());
                 return null;
             }
             
@@ -157,10 +182,16 @@ public class JDKManager {
         }
     }
     
-    private static void updateProgress(ProgressBar progressBar, String status, double progress) {
+    private static void updateProgress(ProgressBar progressBar, LaunchProgress launchProgress,
+                                       String status, double progress, boolean useOverlay) {
         SwingUtilities.invokeLater(() -> {
-            progressBar.setStatus(status);
-            progressBar.setProgress(progress);
+            if (useOverlay && launchProgress != null) {
+                launchProgress.setStatus(status);
+                launchProgress.setProgress(progress);
+            } else if (progressBar != null) {
+                progressBar.setStatus(status);
+                progressBar.setProgress(progress);
+            }
         });
     }
 

@@ -26,33 +26,58 @@ public class MinecraftLauncher {
     private static final Logger log = LoggerFactory.getLogger(MinecraftLauncher.class);
 
     protected static void startMinecraft(JFrame parentFrame) throws FileNotFoundException, IOException {
+        startMinecraft(parentFrame, null);
+    }
+
+    protected static void startMinecraft(JFrame parentFrame, LaunchProgress progress) throws FileNotFoundException, IOException {
         log.info("MinecraftLauncher: startMinecraft");
 
         File minecraftFolder = MinecraftConfigLoader.getMinecraftFolder();
         log.info("MinecraftLauncher: minecraftFolder: {}", minecraftFolder.getAbsolutePath());
 
+        if (progress != null) {
+            progress.setStage("Подключение к серверу");
+            progress.setStatus("Проверка обновлений...");
+            progress.setIndeterminate(true);
+        }
+
         // Загрузка модов с сервера (если доступен /api/version)
         String apiBaseUrl = LauncherConfigLoader.getApiBaseUrl();
         ServerVersion version = ServerVersionClient.fetch(apiBaseUrl).orElse(null);
+
+        if (progress != null) {
+            progress.setStage("Проверка модов");
+            progress.setStatus(version != null ? "Моды актуальны" : "Сервер недоступен");
+        }
         if (version != null && version.mods() != null && !version.mods().isEmpty()) {
-            if (!ModDownloader.ensureMods(minecraftFolder, version.mods(), parentFrame)) {
+            if (!ModDownloader.ensureMods(minecraftFolder, version.mods(), parentFrame, progress)) {
                 throw new IOException("Не удалось загрузить моды с сервера");
             }
         } else if (version == null) {
             log.warn("Сервер недоступен, моды не загружены. Проверьте api_base_url в configs/launcher-config.json");
         }
 
-        String javaExePath = JDKManager.ensureJDKInstalled(minecraftFolder, parentFrame);
+        if (progress != null) {
+            progress.setStage("Подготовка Java");
+            progress.setStatus("Проверка JDK...");
+            progress.setIndeterminate(true);
+        }
+        String javaExePath = JDKManager.ensureJDKInstalled(minecraftFolder, parentFrame, progress);
         if (javaExePath == null) {
             throw new IOException("Не удалось установить или найти JDK");
         }
 
+        if (progress != null) {
+            progress.setStage("Подготовка настроек");
+            progress.setStatus("Настройка игры...");
+            progress.setIndeterminate(true);
+        }
         ensureFullscreenEnabled(minecraftFolder);
 
         if (ModpackConfigLoader.exists(minecraftFolder)) {
-            launchFromModpack(minecraftFolder, javaExePath, parentFrame);
+            launchFromModpack(minecraftFolder, javaExePath, parentFrame, progress);
         } else {
-            launchFromLegacyConfig(minecraftFolder, javaExePath);
+            launchFromLegacyConfig(minecraftFolder, javaExePath, progress);
         }
     }
 
@@ -90,15 +115,21 @@ public class MinecraftLauncher {
     /**
      * Запуск по modpack.json (формат Mojang/Fabric).
      */
-    private static void launchFromModpack(File minecraftFolder, String javaExePath, JFrame parentFrame) throws IOException {
+    private static void launchFromModpack(File minecraftFolder, String javaExePath, JFrame parentFrame,
+                                          LaunchProgress progress) throws IOException {
         ModpackConfig modpack = ModpackConfigLoader.load(minecraftFolder);
         String currentOs = ModpackConfigLoader.getCurrentOs();
         String base = minecraftFolder.getAbsolutePath();
         // Используем / для путей в JVM-аргументах (совместимо с Java/JNI на всех ОС)
         String nativesPath = (base + File.separator + "natives").replace('\\', '/');
 
+        if (progress != null) {
+            progress.setStage("Загрузка файлов игры");
+            progress.setStatus("Проверка модпака...");
+            progress.setIndeterminate(true);
+        }
         // Скачивание отсутствующих client.jar и библиотек
-        ensureModpackFiles(minecraftFolder, modpack, currentOs, parentFrame);
+        ensureModpackFiles(minecraftFolder, modpack, currentOs, parentFrame, progress);
 
         // Client JAR: versions/{id}/{id}.jar или versions/{id}/client.jar
         String versionId = modpack.id() != null ? modpack.id() : "modpack";
@@ -146,13 +177,14 @@ public class MinecraftLauncher {
         }
 
         // Скачивание индекса ассетов (assets/indexes/29.json)
+        if (progress != null) progress.setStatus("Индекс ассетов...");
         ensureAssetIndex(minecraftFolder, modpack);
 
         // Скачивание отсутствующих ассетов (текстуры, звуки и т.д.)
         String assetsIndexId = modpack.assets() != null ? modpack.assets() : "29";
         File assetIndexFile = new File(minecraftFolder, "assets" + File.separator + "indexes" + File.separator + assetsIndexId + ".json");
         File assetsDir = new File(minecraftFolder, "assets");
-        AssetDownloader.ensureAssets(assetsDir, assetIndexFile, parentFrame);
+        AssetDownloader.ensureAssets(assetsDir, assetIndexFile, parentFrame, progress);
 
         String classpath = String.join(File.pathSeparator, cp);
         if (cp.size() <= 1) {
@@ -186,18 +218,32 @@ public class MinecraftLauncher {
         cmd.add(mainClass);
         cmd.addAll(gameArgs);
 
+        if (progress != null) {
+            progress.setStage("Запуск Minecraft");
+            progress.setStatus("Запуск игры...");
+            progress.setProgress(1.0);
+        }
         log.info("MinecraftLauncher: starting process (modpack), mainClass={}", mainClass);
         Process proc = new ProcessBuilder(cmd)
                 .directory(minecraftFolder)
                 .inheritIO()
                 .start();
         log.info("MinecraftLauncher: game process started, pid={}", proc.pid());
+        if (progress != null) {
+            progress.setStatus("Ожидание окна игры...");
+            try {
+                Thread.sleep(5000);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+            }
+            progress.done();
+        }
     }
 
     /**
      * Запуск по minecraft-launch-config.json (legacy).
      */
-    private static void launchFromLegacyConfig(File minecraftFolder, String javaExePath) throws IOException {
+    private static void launchFromLegacyConfig(File minecraftFolder, String javaExePath, LaunchProgress progress) throws IOException {
         MinecraftLaunchConfig cfg = MinecraftConfigLoader.load();
         log.info("MinecraftLauncher: javaPath: {}", javaExePath);
 
@@ -274,12 +320,26 @@ public class MinecraftLauncher {
         cmd.add(mainClass);
         cmd.addAll(gameArgs);
 
+        if (progress != null) {
+            progress.setStage("Запуск Minecraft");
+            progress.setStatus("Запуск игры...");
+            progress.setProgress(1.0);
+        }
         log.info("MinecraftLauncher: starting process (legacy), mainClass={}", mainClass);
         Process proc = new ProcessBuilder(cmd)
                 .directory(minecraftFolder)
                 .inheritIO()
                 .start();
         log.info("MinecraftLauncher: game process started, pid={}", proc.pid());
+        if (progress != null) {
+            progress.setStatus("Ожидание окна игры...");
+            try {
+                Thread.sleep(5000);
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+            }
+            progress.done();
+        }
     }
 
     /**
@@ -304,7 +364,7 @@ public class MinecraftLauncher {
      * Скачивает отсутствующие client.jar и библиотеки.
      */
     private static void ensureModpackFiles(File minecraftFolder, ModpackConfig modpack, String currentOs,
-                                           JFrame parentFrame) throws IOException {
+                                           JFrame parentFrame, LaunchProgress progress) throws IOException {
         String versionId = modpack.id() != null ? modpack.id() : "modpack";
         File clientJar = new File(minecraftFolder, "versions" + File.separator + versionId + File.separator + versionId + ".jar");
         File clientJarAlt = new File(minecraftFolder, "versions" + File.separator + versionId + File.separator + "client.jar");
@@ -325,25 +385,44 @@ public class MinecraftLauncher {
         int total = (needClientJar ? 1 : 0) + missingLibs.size();
         if (total == 0) return;
 
-        AtomicReference<ProgressBar> progressBarRef = new AtomicReference<>();
-        SwingUtilities.invokeLater(() -> {
-            ProgressBar pb = new ProgressBar(parentFrame, "Скачивание файлов модпака");
-            pb.setVisible(true);
-            progressBarRef.set(pb);
-        });
-        while (progressBarRef.get() == null) {
-            try { Thread.sleep(50); } catch (InterruptedException ignored) {}
+        final boolean useOverlay = progress != null;
+        AtomicReference<ProgressBar> progressBarRef = useOverlay ? null : new AtomicReference<>();
+        if (!useOverlay && parentFrame != null) {
+            SwingUtilities.invokeLater(() -> {
+                ProgressBar pb = new ProgressBar(parentFrame, "Скачивание файлов модпака");
+                pb.setVisible(true);
+                progressBarRef.set(pb);
+            });
+            while (progressBarRef.get() == null) {
+                try { Thread.sleep(50); } catch (InterruptedException ignored) {}
+            }
+        } else if (useOverlay) {
+            progress.setIndeterminate(false);
+            progress.setProgress(0);
         }
-        ProgressBar progressBar = progressBarRef.get();
+
+        ProgressBar progressBar = !useOverlay ? progressBarRef.get() : null;
 
         try {
             int[] done = {0};
             if (needClientJar) {
-                progressBar.setStatus("Скачивание client.jar...");
+                String status = "Скачивание client.jar...";
+                if (useOverlay) {
+                    progress.setStage("Загрузка файлов игры");
+                    progress.setStatus(status);
+                } else {
+                    progressBar.setStatus(status);
+                }
                 if (!LibraryDownloader.ensureClientJar(minecraftFolder, modpack, p ->
                         SwingUtilities.invokeLater(() -> {
-                            progressBar.setProgress((done[0] + p) / (double) total);
-                            progressBar.setStatus(String.format("Скачивание client.jar... %.0f%%", p * 100));
+                            double prog = (done[0] + p) / (double) total;
+                            if (useOverlay) {
+                                progress.setProgress(prog);
+                                progress.setStatus(String.format("Скачивание client.jar... %.0f%%", p * 100));
+                            } else {
+                                progressBar.setProgress(prog);
+                                progressBar.setStatus(String.format("Скачивание client.jar... %.0f%%", p * 100));
+                            }
                         }))) {
                     throw new IOException("Не удалось скачать client.jar");
                 }
@@ -353,20 +432,34 @@ public class MinecraftLauncher {
             for (ModpackLibrary lib : missingLibs) {
                 String name = lib.name();
                 int completedBefore = done[0];
-                progressBar.setStatus(String.format("Скачивание %s (%d/%d)...", name, completedBefore + 1, total));
+                String status = String.format("Скачивание %s (%d/%d)...", name, completedBefore + 1, total);
+                if (useOverlay) {
+                    progress.setStatus(status);
+                } else {
+                    progressBar.setStatus(status);
+                }
                 if (!LibraryDownloader.ensureLibrary(minecraftFolder, lib, p ->
-                        SwingUtilities.invokeLater(() ->
-                                progressBar.setProgress((completedBefore + p) / (double) total)))) {
+                        SwingUtilities.invokeLater(() -> {
+                            double prog = (completedBefore + p) / (double) total;
+                            if (useOverlay) progress.setProgress(prog);
+                            else progressBar.setProgress(prog);
+                        }))) {
                     throw new IOException("Не удалось скачать библиотеку: " + name);
                 }
                 done[0]++;
-                SwingUtilities.invokeLater(() -> progressBar.setProgress((double) done[0] / total));
+                final int d = done[0];
+                SwingUtilities.invokeLater(() -> {
+                    if (useOverlay) progress.setProgress((double) d / total);
+                    else progressBar.setProgress((double) d / total);
+                });
             }
         } finally {
-            SwingUtilities.invokeLater(() -> {
-                progressBar.setVisible(false);
-                progressBar.dispose();
-            });
+            if (!useOverlay && progressBar != null) {
+                SwingUtilities.invokeLater(() -> {
+                    progressBar.setVisible(false);
+                    progressBar.dispose();
+                });
+            }
         }
     }
 

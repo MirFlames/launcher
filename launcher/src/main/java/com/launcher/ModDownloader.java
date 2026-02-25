@@ -29,10 +29,16 @@ public final class ModDownloader {
      * @param minecraftFolder папка Minecraft
      * @param mods            список модов из /api/version
      * @param parentFrame     родительское окно для ProgressBar (может быть null)
+     * @param launchProgress  overlay прогресса запуска (если не null — используется вместо отдельного диалога)
      * @return true если все моды успешно загружены
      */
     public static boolean ensureMods(File minecraftFolder, List<ServerVersion.ServerFile> mods,
                                       JFrame parentFrame) {
+        return ensureMods(minecraftFolder, mods, parentFrame, null);
+    }
+
+    public static boolean ensureMods(File minecraftFolder, List<ServerVersion.ServerFile> mods,
+                                      JFrame parentFrame, LaunchProgress launchProgress) {
         if (mods == null || mods.isEmpty()) {
             log.info("Список модов пуст, пропуск загрузки");
             return true;
@@ -50,8 +56,9 @@ public final class ModDownloader {
             return true;
         }
 
+        final boolean useOverlay = launchProgress != null;
         AtomicReference<ProgressBar> progressBarRef = new AtomicReference<>();
-        if (parentFrame != null) {
+        if (!useOverlay && parentFrame != null) {
             SwingUtilities.invokeLater(() -> {
                 ProgressBar pb = new ProgressBar(parentFrame, "Скачивание модов");
                 pb.setVisible(true);
@@ -65,27 +72,31 @@ public final class ModDownloader {
                     return false;
                 }
             }
+        } else if (useOverlay) {
+            launchProgress.setIndeterminate(false);
+            launchProgress.setProgress(0);
         }
 
-        ProgressBar progressBar = progressBarRef.get();
+        ProgressBar progressBar = !useOverlay ? progressBarRef.get() : null;
         int total = toDownload.size();
         int[] done = {0};
 
         try {
             for (ServerVersion.ServerFile mod : toDownload) {
                 File dest = new File(modsDir, mod.name());
-                if (progressBar != null) {
-                    SwingUtilities.invokeLater(() -> {
-                        progressBar.setStatus(String.format("Скачивание %s (%d/%d)...",
-                                mod.name(), done[0] + 1, total));
-                    });
+                String status = String.format("Скачивание %s (%d/%d)...", mod.name(), done[0] + 1, total);
+                if (useOverlay) {
+                    launchProgress.setStatus(status);
+                } else if (progressBar != null) {
+                    SwingUtilities.invokeLater(() -> progressBar.setStatus(status));
                 }
 
                 if (!LibraryDownloader.downloadFile(mod.url(), dest, 0, p -> {
-                    if (progressBar != null) {
-                        double overall = (done[0] + p) / (double) total;
-                        SwingUtilities.invokeLater(() -> progressBar.setProgress(overall));
-                    }
+                    double overall = (done[0] + p) / (double) total;
+                    SwingUtilities.invokeLater(() -> {
+                        if (useOverlay) launchProgress.setProgress(overall);
+                        else if (progressBar != null) progressBar.setProgress(overall);
+                    });
                 })) {
                     return false;
                 }
@@ -99,13 +110,15 @@ public final class ModDownloader {
                 }
 
                 done[0]++;
-                if (progressBar != null) {
-                    SwingUtilities.invokeLater(() -> progressBar.setProgress((double) done[0] / total));
-                }
+                final int d = done[0];
+                SwingUtilities.invokeLater(() -> {
+                    if (useOverlay) launchProgress.setProgress((double) d / total);
+                    else if (progressBar != null) progressBar.setProgress((double) d / total);
+                });
             }
             return true;
         } finally {
-            if (progressBar != null) {
+            if (!useOverlay && progressBar != null) {
                 SwingUtilities.invokeLater(() -> {
                     progressBar.setVisible(false);
                     progressBar.dispose();
