@@ -86,8 +86,12 @@ func StartTelegramBot() {
 			}
 
 			nickname := strings.TrimSpace(text)
+			telegramUsername := ""
+			if msg.From != nil && msg.From.UserName != "" {
+				telegramUsername = msg.From.UserName
+			}
 
-			if err := completeAuth(pending.code, nickname, userID); err != nil {
+			if err := completeAuth(pending.code, nickname, telegramUsername, userID); err != nil {
 				log.Printf("[Telegram] Ошибка completeAuth для user_id=%d, code=%s: %v", userID, pending.code, err)
 				sendMessage(bot, chatID, "Ошибка при входе. Код мог истечь. Нажмите «Войти» в лаунчере и попробуйте снова.")
 			} else {
@@ -141,6 +145,22 @@ func StartTelegramBot() {
 
 		if s.completed {
 			sendMessage(bot, chatID, "Этот код уже использован. Нажмите «Войти» в лаунчере для нового входа.")
+			continue
+		}
+
+		// Повторный вход: если у пользователя уже есть сессия — не спрашиваем никнейм
+		telegramUsername := ""
+		if msg.From != nil && msg.From.UserName != "" {
+			telegramUsername = msg.From.UserName
+		}
+		if stored, ok := getStoredEntryByTelegramID(userID); ok && stored.Nickname != "" {
+			if err := completeAuth(code, stored.Nickname, telegramUsername, userID); err != nil {
+				log.Printf("[Telegram] Ошибка completeAuth (возврат) для user_id=%d: %v", userID, err)
+				sendMessage(bot, chatID, "Ошибка при входе. Попробуйте снова.")
+			} else {
+				log.Printf("[Telegram] Возврат: user_id=%d, nickname=%s, code=%s", userID, stored.Nickname, code)
+				sendMessage(bot, chatID, "С возвращением! Вернитесь в лаунчер — кнопка изменится на «Играть».")
+			}
 			continue
 		}
 

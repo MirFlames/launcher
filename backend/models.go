@@ -76,7 +76,15 @@ type AuthCheckResponse struct {
 
 // AuthCompleteRequest — тело запроса POST /api/auth/complete
 type AuthCompleteRequest struct {
-	Code       string `json:"code"`
-	Nickname   string `json:"nickname"`
-	TelegramID int64  `json:"telegram_id"`
+	Code             string `json:"code"`
+	Nickname         string `json:"nickname"`
+	TelegramID       int64  `json:"telegram_id"`
+	TelegramUsername string `json:"telegram_username,omitempty"`
+}
+
+// ValidSessionEntry — запись в valid-sessions.json (никнейм, Telegram ID и логин)
+type ValidSessionEntry struct {
+	Nickname         string `json:"nickname"`
+	TelegramID       int64  `json:"telegram_id"`
+	TelegramUsername string `json:"telegram_username"`
 }

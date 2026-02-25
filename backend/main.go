@@ -35,8 +35,8 @@ var authStore = struct {
 // validSessions — сессии, прошедшие аутентификацию (для проверки сервером)
 var validSessions = struct {
 	sync.RWMutex
-	m map[string]string // session_uuid -> nickname
-}{m: make(map[string]string)}
+	m map[string]ValidSessionEntry // session_uuid -> entry (nickname, telegram_id, telegram_username)
+}{m: make(map[string]ValidSessionEntry)}
 
 const validSessionsFile = "valid-sessions.json"
 const authCodeTTL = 5 * time.Minute
@@ -69,7 +69,8 @@ func cleanupExpiredAuthSessions() {
 	}
 }
 
-// loadValidSessions загружает сессии из файла (переживают перезапуск backend)
+// loadValidSessions загружает сессии из файла (переживают перезапуск backend).
+// Поддерживает старый формат {"uuid": "nickname"} и новый с telegram_id, telegram_username.
 func loadValidSessions() {
 	data, err := os.ReadFile(validSessionsFile)
 	if err != nil {
@@ -78,27 +79,49 @@ func loadValidSessions() {
 		}
 		return
 	}
-	var m map[string]string
-	if err := json.Unmarshal(data, &m); err != nil {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
 		log.Printf("[Auth] Невалидный %s: %v", validSessionsFile, err)
 		return
 	}
 	validSessions.Lock()
 	n := 0
-	for k, v := range m {
-		if k != "" && v != "" {
-			validSessions.m[k] = v
+	for k, v := range raw {
+		if k == "" {
+			continue
+		}
+		var entry ValidSessionEntry
+		if err := json.Unmarshal(v, &entry); err == nil && entry.Nickname != "" {
+			validSessions.m[k] = entry
 			n++
+		} else {
+			var nickname string
+			if err := json.Unmarshal(v, &nickname); err == nil && nickname != "" {
+				validSessions.m[k] = ValidSessionEntry{Nickname: nickname}
+				n++
+			}
 		}
 	}
 	validSessions.Unlock()
 	log.Printf("[Auth] Загружено %d сессий из %s", n, validSessionsFile)
 }
 
-// saveValidSessions сохраняет сессии в файл
+// getStoredEntryByTelegramID возвращает запись сессии по telegram_id (для повторного входа без запроса никнейма)
+func getStoredEntryByTelegramID(telegramID int64) (ValidSessionEntry, bool) {
+	validSessions.RLock()
+	defer validSessions.RUnlock()
+	for _, e := range validSessions.m {
+		if e.TelegramID != 0 && e.TelegramID == telegramID {
+			return e, true
+		}
+	}
+	return ValidSessionEntry{}, false
+}
+
+// saveValidSessions сохраняет сессии в файл (nickname, telegram_id, telegram_username)
 func saveValidSessions() {
 	validSessions.RLock()
-	m := make(map[string]string, len(validSessions.m))
+	m := make(map[string]ValidSessionEntry, len(validSessions.m))
 	for k, v := range validSessions.m {
 		m[k] = v
 	}
@@ -536,7 +559,8 @@ func handleAuthCheck(w http.ResponseWriter, r *http.Request) {
 
 // completeAuth завершает аутентификацию по коду. Вызывается из handleAuthComplete и из Telegram-бота.
 // Возвращает ошибку при невалидном коде или истёкшем TTL.
-func completeAuth(code, nickname string, telegramID int64) error {
+// С одного Telegram-аккаунта (telegram_id) может быть только один аккаунт на сервере — при повторном входе старая сессия заменяется.
+func completeAuth(code, nickname, telegramUsername string, telegramID int64) error {
 	authStore.Lock()
 	defer authStore.Unlock()
 
@@ -556,12 +580,27 @@ func completeAuth(code, nickname string, telegramID int64) error {
 	s.sessionUUID = generateSessionUUID()
 	s.completed = true
 
+	entry := ValidSessionEntry{
+		Nickname:         s.nickname,
+		TelegramID:       telegramID,
+		TelegramUsername: strings.TrimSpace(telegramUsername),
+	}
+
 	validSessions.Lock()
-	validSessions.m[s.sessionUUID] = s.nickname
+	// Удалить старую сессию этого Telegram-аккаунта (один аккаунт на сервере)
+	for uuid, e := range validSessions.m {
+		if e.TelegramID != 0 && e.TelegramID == telegramID {
+			delete(validSessions.m, uuid)
+			log.Printf("[Auth] Удалена старая сессия telegram_id=%d (uuid=%s)", telegramID, uuid)
+			break
+		}
+	}
+	validSessions.m[s.sessionUUID] = entry
 	validSessions.Unlock()
 	saveValidSessions()
 
-	log.Printf("[Auth] Сессия завершена: code=%s, nickname=%s, telegram_id=%d, session_uuid=%s", code, s.nickname, telegramID, s.sessionUUID)
+	log.Printf("[Auth] Сессия завершена: code=%s, nickname=%s, telegram_id=%d, telegram_username=%s, session_uuid=%s",
+		code, s.nickname, telegramID, entry.TelegramUsername, s.sessionUUID)
 	return nil
 }
 
@@ -583,9 +622,9 @@ func handleAuthComplete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("[Auth] Запрос complete: code=%s, nickname=%s, telegram_id=%d", req.Code, req.Nickname, req.TelegramID)
+	log.Printf("[Auth] Запрос complete: code=%s, nickname=%s, telegram_id=%d, telegram_username=%s", req.Code, req.Nickname, req.TelegramID, req.TelegramUsername)
 
-	if err := completeAuth(req.Code, req.Nickname, req.TelegramID); err != nil {
+	if err := completeAuth(req.Code, req.Nickname, req.TelegramUsername, req.TelegramID); err != nil {
 		log.Printf("[Auth] completeAuth ошибка: %v", err)
 		if err.Error() == "код не найден" || err.Error() == "код истёк" {
 			http.Error(w, err.Error(), http.StatusGone)
@@ -619,10 +658,10 @@ func handleAuthVerify(w http.ResponseWriter, r *http.Request) {
 	}
 
 	validSessions.RLock()
-	storedNickname, ok := validSessions.m[sessionUUID]
+	entry, ok := validSessions.m[sessionUUID]
 	validSessions.RUnlock()
 
-	valid := ok && storedNickname == nickname
+	valid := ok && entry.Nickname == nickname
 	if valid {
 		log.Printf("[Auth] Verify OK: nickname=%s, session_uuid=%s", nickname, sessionUUID)
 	} else {
