@@ -4,194 +4,194 @@
   "client_files": [
     {
       "name": "fabric-loader-0.18.4-1.21.11.jar",
-      "url": "http://localhost:8080/files/versions/fabric-loader-0.18.4-1.21.11/fabric-loader-0.18.4-1.21.11.jar",
+      "url": "http://localhost:80/files/versions/fabric-loader-0.18.4-1.21.11/fabric-loader-0.18.4-1.21.11.jar",
       "hash": "1473c9489ac50fda3c435049a76a70d61a10b8610db27f5ba9d8756b686cd3bd"
     }
   ],
   "mods": [
     {
       "name": "BlackwolfLibrary-fabric-1.21.11-1.1.8.jar",
-      "url": "http://localhost:8080/files/mods/BlackwolfLibrary-fabric-1.21.11-1.1.8.jar",
+      "url": "http://localhost:80/files/mods/BlackwolfLibrary-fabric-1.21.11-1.1.8.jar",
       "hash": "9575c7b1ad7c392680e8d8d5d5b7e9fbf39b3d36f04676aff244d383e60a211b"
     },
     {
       "name": "Chunky-Fabric-1.4.55.jar",
-      "url": "http://localhost:8080/files/mods/Chunky-Fabric-1.4.55.jar",
+      "url": "http://localhost:80/files/mods/Chunky-Fabric-1.4.55.jar",
       "hash": "33cbd9bce0e3366851c4b59861043334eb7c1892248f1ef11403bbedb476bd15"
     },
     {
       "name": "Clumps-fabric-1.21.11-29.0.0.1.jar",
-      "url": "http://localhost:8080/files/mods/Clumps-fabric-1.21.11-29.0.0.1.jar",
+      "url": "http://localhost:80/files/mods/Clumps-fabric-1.21.11-29.0.0.1.jar",
       "hash": "e3211208529817e5efcd0e2ee96f9c8c516e8bbade5a286cd6b8a2f4e70f6163"
     },
     {
       "name": "ForgeConfigAPIPort-v21.11.1-mc1.21.11-Fabric.jar",
-      "url": "http://localhost:8080/files/mods/ForgeConfigAPIPort-v21.11.1-mc1.21.11-Fabric.jar",
+      "url": "http://localhost:80/files/mods/ForgeConfigAPIPort-v21.11.1-mc1.21.11-Fabric.jar",
       "hash": "31a0686904fad1cfdeb1d6b011ac1c2280990d6e76ac2416468147e2246b4db1"
     },
     {
       "name": "MoreWalls-fabric-1.21.11-1.1.4.jar",
-      "url": "http://localhost:8080/files/mods/MoreWalls-fabric-1.21.11-1.1.4.jar",
+      "url": "http://localhost:80/files/mods/MoreWalls-fabric-1.21.11-1.1.4.jar",
       "hash": "5ce439db160f3723e286032a871b44ee261951194915a9580179153d7d72f353"
     },
     {
       "name": "PickUpNotifier-v21.11.0-mc1.21.11-Fabric.jar",
-      "url": "http://localhost:8080/files/mods/PickUpNotifier-v21.11.0-mc1.21.11-Fabric.jar",
+      "url": "http://localhost:80/files/mods/PickUpNotifier-v21.11.0-mc1.21.11-Fabric.jar",
       "hash": "0777619d9245b55fca230604491fffb5f2ad7cdfb152777950513478b7b2107e"
     },
     {
       "name": "PlayerAnimationLibFabric-1.1.5+mc.1.21.11.jar",
-      "url": "http://localhost:8080/files/mods/PlayerAnimationLibFabric-1.1.5+mc.1.21.11.jar",
+      "url": "http://localhost:80/files/mods/PlayerAnimationLibFabric-1.1.5+mc.1.21.11.jar",
       "hash": "99cc65a2d23b9b449ce30007f5bd7713efc778333f6892dfea38d78c65e7314a"
     },
     {
       "name": "PuzzlesLib-v21.11.6-mc1.21.11-Fabric.jar",
-      "url": "http://localhost:8080/files/mods/PuzzlesLib-v21.11.6-mc1.21.11-Fabric.jar",
+      "url": "http://localhost:80/files/mods/PuzzlesLib-v21.11.6-mc1.21.11-Fabric.jar",
       "hash": "bae4fe81da04d73c6623782b072245b532e8a5918d5ab596ec908f52a830aa3a"
     },
     {
       "name": "TitleScreenCleaner-1.21.6-v1.1.jar",
-      "url": "http://localhost:8080/files/mods/TitleScreenCleaner-1.21.6-v1.1.jar",
+      "url": "http://localhost:80/files/mods/TitleScreenCleaner-1.21.6-v1.1.jar",
       "hash": "192e41be655dc83cb180a2947c5a446b251d6b64ae6fd5193ab8fe60a337c52b"
     },
     {
       "name": "balm-fabric-1.21.11-21.11.6.jar",
-      "url": "http://localhost:8080/files/mods/balm-fabric-1.21.11-21.11.6.jar",
+      "url": "http://localhost:80/files/mods/balm-fabric-1.21.11-21.11.6.jar",
       "hash": "f249eec690bd8e7cafb546af663e6310d7e77706cd6d914a2c912354115437d4"
     },
     {
       "name": "bettercombat-fabric-3.0.0+1.21.11.jar",
-      "url": "http://localhost:8080/files/mods/bettercombat-fabric-3.0.0+1.21.11.jar",
+      "url": "http://localhost:80/files/mods/bettercombat-fabric-3.0.0+1.21.11.jar",
       "hash": "4048e6744de99d2b0dde195c63bac95c0c17d75a64b3ae549bfc356ce27d783d"
     },
     {
       "name": "chatanimation-fabric-1.21.11-1.1.3.jar",
-      "url": "http://localhost:8080/files/mods/chatanimation-fabric-1.21.11-1.1.3.jar",
+      "url": "http://localhost:80/files/mods/chatanimation-fabric-1.21.11-1.1.3.jar",
       "hash": "dcf7752107b99dc60094a10d8585c284db7d12586e5841d20029661971434a79"
     },
     {
       "name": "cloth-config-21.11.153-fabric.jar",
-      "url": "http://localhost:8080/files/mods/cloth-config-21.11.153-fabric.jar",
+      "url": "http://localhost:80/files/mods/cloth-config-21.11.153-fabric.jar",
       "hash": "8a40c84e5ecde525acfb6c4e13b8002dacfca3ef9534d7faf6e8049656f423c8"
     },
     {
       "name": "collective-1.21.11-8.13.jar",
-      "url": "http://localhost:8080/files/mods/collective-1.21.11-8.13.jar",
+      "url": "http://localhost:80/files/mods/collective-1.21.11-8.13.jar",
       "hash": "f79aa00b159be2ca65421557872939d1aa3532f4f91066fa38b8ab9c0265d2ef"
     },
     {
       "name": "dynamic-fps-3.11.3+minecraft-1.21.11-fabric.jar",
-      "url": "http://localhost:8080/files/mods/dynamic-fps-3.11.3+minecraft-1.21.11-fabric.jar",
+      "url": "http://localhost:80/files/mods/dynamic-fps-3.11.3+minecraft-1.21.11-fabric.jar",
       "hash": "8f7b842c87a6c5ce91f1bae9aa7e181997122ec56dbeecbd1527f8b250def751"
     },
     {
       "name": "easyauth-mc1.21.11-3.4.1.jar",
-      "url": "http://localhost:8080/files/mods/easyauth-mc1.21.11-3.4.1.jar",
+      "url": "http://localhost:80/files/mods/easyauth-mc1.21.11-3.4.1.jar",
       "hash": "a012a1c950228b8add7c4db4c3e121ad975d567ebcaccfdbbb271cd681e04994"
     },
     {
       "name": "emotecraft-fabric-for-MC1.21.11-3.2.0-b.build.142.jar",
-      "url": "http://localhost:8080/files/mods/emotecraft-fabric-for-MC1.21.11-3.2.0-b.build.142.jar",
+      "url": "http://localhost:80/files/mods/emotecraft-fabric-for-MC1.21.11-3.2.0-b.build.142.jar",
       "hash": "9d82a156f32f362699e1c50c3fae1c70d2d2d070ce2c78fc015ace74c155616c"
     },
     {
       "name": "explorations-fabric-1.21.11-1.6.3.jar",
-      "url": "http://localhost:8080/files/mods/explorations-fabric-1.21.11-1.6.3.jar",
+      "url": "http://localhost:80/files/mods/explorations-fabric-1.21.11-1.6.3.jar",
       "hash": "a54b08a65a76a7756cf52b68b4557bb4b3bc55c4893e2c5ba9860fbf4d08cf6c"
     },
     {
       "name": "fabric-api-0.141.1+1.21.11.jar",
-      "url": "http://localhost:8080/files/mods/fabric-api-0.141.1+1.21.11.jar",
+      "url": "http://localhost:80/files/mods/fabric-api-0.141.1+1.21.11.jar",
       "hash": "6a577f83bd8b33c9404127d16531acc9c4195f47de0395957c9d4cd09d7b98c6"
     },
     {
       "name": "fabric-language-kotlin-1.13.8+kotlin.2.3.0.jar",
-      "url": "http://localhost:8080/files/mods/fabric-language-kotlin-1.13.8+kotlin.2.3.0.jar",
+      "url": "http://localhost:80/files/mods/fabric-language-kotlin-1.13.8+kotlin.2.3.0.jar",
       "hash": "760953d8d3d1fa32a353593d744e2917d8a91ca8923ae9518b5ef2676a631002"
     },
     {
       "name": "fast-ip-ping-v1.0.8-mc1.21.11-fabric.jar",
-      "url": "http://localhost:8080/files/mods/fast-ip-ping-v1.0.8-mc1.21.11-fabric.jar",
+      "url": "http://localhost:80/files/mods/fast-ip-ping-v1.0.8-mc1.21.11-fabric.jar",
       "hash": "83adf464dd7ff036c8c1c7b8b6951c6238b9ae85925fff343b02fe05a7ddfe0f"
     },
     {
       "name": "filament-1.3.22+1.21.11.jar",
-      "url": "http://localhost:8080/files/mods/filament-1.3.22+1.21.11.jar",
+      "url": "http://localhost:80/files/mods/filament-1.3.22+1.21.11.jar",
       "hash": "343fcc02f7092a58485f09a88c455e247a389c52381f55b90ba68a403a8392bb"
     },
     {
       "name": "firstjoinmessage-1.21.11-3.8.jar",
-      "url": "http://localhost:8080/files/mods/firstjoinmessage-1.21.11-3.8.jar",
+      "url": "http://localhost:80/files/mods/firstjoinmessage-1.21.11-3.8.jar",
       "hash": "e2fd4fbdf3f13fa973c4916bf331bbd81fe0c7d9b2254d28ca622ea9abb8e901"
     },
     {
       "name": "firstperson-fabric-2.6.1-mc1.21.11.jar",
-      "url": "http://localhost:8080/files/mods/firstperson-fabric-2.6.1-mc1.21.11.jar",
+      "url": "http://localhost:80/files/mods/firstperson-fabric-2.6.1-mc1.21.11.jar",
       "hash": "e5905570c4a93880edbed72608758175742da7f3eef72220aef7b4c4eabc3a0c"
     },
     {
       "name": "forgivingvoid-fabric-1.21.11-21.11.3.jar",
-      "url": "http://localhost:8080/files/mods/forgivingvoid-fabric-1.21.11-21.11.3.jar",
+      "url": "http://localhost:80/files/mods/forgivingvoid-fabric-1.21.11-21.11.3.jar",
       "hash": "b179f4514026aba55efb616799c7a2bea3efd4504207a210d09215befa1f8199"
     },
     {
       "name": "hide-item-frame-fabric-1.3+1.21.9.jar",
-      "url": "http://localhost:8080/files/mods/hide-item-frame-fabric-1.3+1.21.9.jar",
+      "url": "http://localhost:80/files/mods/hide-item-frame-fabric-1.3+1.21.9.jar",
       "hash": "6a22b3bf286438cd29ae56c89c832d777f2140a5833409a49cd00015c72e7476"
     },
     {
       "name": "lithium-fabric-0.21.2+mc1.21.11.jar",
-      "url": "http://localhost:8080/files/mods/lithium-fabric-0.21.2+mc1.21.11.jar",
+      "url": "http://localhost:80/files/mods/lithium-fabric-0.21.2+mc1.21.11.jar",
       "hash": "3106639c73ee23f44bfbe5e5e7a8154dfe3ad0fd48491e4a85767598ed7b0739"
     },
     {
       "name": "notenoughanimations-fabric-1.11.1-mc1.21.11.jar",
-      "url": "http://localhost:8080/files/mods/notenoughanimations-fabric-1.11.1-mc1.21.11.jar",
+      "url": "http://localhost:80/files/mods/notenoughanimations-fabric-1.11.1-mc1.21.11.jar",
       "hash": "bed45b897491288952a488cdda1fd267b88f2724d74d86d8d5e74a31881375b6"
     },
     {
       "name": "polymer-bundled-0.15.1+1.21.11.jar",
-      "url": "http://localhost:8080/files/mods/polymer-bundled-0.15.1+1.21.11.jar",
+      "url": "http://localhost:80/files/mods/polymer-bundled-0.15.1+1.21.11.jar",
       "hash": "e653eece034a89f37cee48e664258504c7d9277c19a529b6f28f2acd037b1128"
     },
     {
       "name": "sit-1.21.11-29.jar",
-      "url": "http://localhost:8080/files/mods/sit-1.21.11-29.jar",
+      "url": "http://localhost:80/files/mods/sit-1.21.11-29.jar",
       "hash": "094dec5b61f1c60e6e82b01d68f5e079f05a63a460a32e0438a0955758a23746"
     },
     {
       "name": "skinshuffle-2.10.1+1.21.11-fabric.jar",
-      "url": "http://localhost:8080/files/mods/skinshuffle-2.10.1+1.21.11-fabric.jar",
+      "url": "http://localhost:80/files/mods/skinshuffle-2.10.1+1.21.11-fabric.jar",
       "hash": "db746aa2bc87d9768fce62bf2f67ea0bea39519eeb1afda970cbe971867af1a0"
     },
     {
       "name": "sound-physics-remastered-fabric-1.21.11-1.5.1.jar",
-      "url": "http://localhost:8080/files/mods/sound-physics-remastered-fabric-1.21.11-1.5.1.jar",
+      "url": "http://localhost:80/files/mods/sound-physics-remastered-fabric-1.21.11-1.5.1.jar",
       "hash": "17a4c14f58b739d275089262fc2015ff1548425202e6e4d7ce8cecf3122cdbca"
     },
     {
       "name": "starterkit-1.21.11-7.6.jar",
-      "url": "http://localhost:8080/files/mods/starterkit-1.21.11-7.6.jar",
+      "url": "http://localhost:80/files/mods/starterkit-1.21.11-7.6.jar",
       "hash": "5ba55964b91fd6b0a74f6c0892d9f2a33ecd3ea1637e498a1682098c427c101f"
     },
     {
       "name": "tsa-decorations-2.1.13+1.21.11.jar",
-      "url": "http://localhost:8080/files/mods/tsa-decorations-2.1.13+1.21.11.jar",
+      "url": "http://localhost:80/files/mods/tsa-decorations-2.1.13+1.21.11.jar",
       "hash": "3f2031b171ca1ad777213279d571d69265c091fbd6fba4aefc3042e0064e9a20"
     },
     {
       "name": "vcinteraction-fabric-1.21.11-1.0.8.jar",
-      "url": "http://localhost:8080/files/mods/vcinteraction-fabric-1.21.11-1.0.8.jar",
+      "url": "http://localhost:80/files/mods/vcinteraction-fabric-1.21.11-1.0.8.jar",
       "hash": "7aadd28fd8f2160bdf91b64416a45830219252a6d051a427f29e5a121ae3bd25"
     },
     {
       "name": "voicechat-fabric-1.21.11-2.6.11.jar",
-      "url": "http://localhost:8080/files/mods/voicechat-fabric-1.21.11-2.6.11.jar",
+      "url": "http://localhost:80/files/mods/voicechat-fabric-1.21.11-2.6.11.jar",
       "hash": "1b5fe15fee0655ead032762b95a35d07cbbe0dfd21c25ee0b5247ac9d1b9353b"
     },
     {
       "name": "weaponmaster_ydm-fabric-1.21.11-4.4.4.jar",
-      "url": "http://localhost:8080/files/mods/weaponmaster_ydm-fabric-1.21.11-4.4.4.jar",
+      "url": "http://localhost:80/files/mods/weaponmaster_ydm-fabric-1.21.11-4.4.4.jar",
       "hash": "5925f5983667f20b1234f77a8b7c7551579c390bda2719596c28bdbc113e8e2b"
     }
   ],
@@ -203,6 +203,7 @@
   "launcher_size": 0,
   "launcher_mandatory": false,
   "telegram_bot_username": "fam_mc_bot",
+  "telegram_bot_token": "8623264086:AAGVMoiUJfq7KuWmbq6gU54Jn7YPC4zGQpI",
   "jdk": {
     "version": "21",
     "relative_path": "jre_default\\jdk",

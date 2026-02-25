@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -152,23 +153,21 @@ func (c corsHandler) wrap(next http.HandlerFunc) http.HandlerFunc {
 }
 
 func main() {
+	rescan := flag.Bool("rescan", false, "Пересчитать config.json из files/mods и files/versions")
+	flag.Parse()
+
 	// Проверить существование config.json, если нет - сгенерировать
 	if _, err := os.Stat("config.json"); os.IsNotExist(err) {
 		log.Println("config.json не найден, генерирую автоматически...")
 
-		// Получить базовый URL из переменной окружения или использовать localhost
 		baseURL := os.Getenv("BASE_URL")
 		if baseURL == "" {
 			baseURL = "http://localhost"
 		}
-
-		// Получить порт из переменной окружения или использовать по умолчанию
 		port := os.Getenv("PORT")
 		if port == "" {
 			port = "8080"
 		}
-
-		// Получить путь к файлам из переменной окружения или использовать по умолчанию
 		filesPath := os.Getenv("FILES_PATH")
 		if filesPath == "" {
 			filesPath = "./files"
@@ -182,6 +181,15 @@ func main() {
 	// Загрузить конфигурацию
 	if err := loadConfig("config.json"); err != nil {
 		log.Fatalf("Ошибка загрузки конфигурации: %v", err)
+	}
+
+	// Режим -rescan: пересчитать mods и client_files из папок, сохранить и выйти
+	if *rescan {
+		if err := rescanConfig(); err != nil {
+			log.Fatalf("Ошибка пересчёта конфигурации: %v", err)
+		}
+		log.Println("config.json обновлён. Запустите сервер без -rescan.")
+		return
 	}
 
 	loadValidSessions()

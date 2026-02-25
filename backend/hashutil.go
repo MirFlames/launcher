@@ -140,6 +140,56 @@ func generateConfig(filesPath string, port string, baseURL string) error {
 	return nil
 }
 
+// rescanConfig пересчитывает mods и client_files из папок, сохраняя остальные настройки config
+func rescanConfig() error {
+	baseURL := os.Getenv("BASE_URL")
+	if baseURL == "" {
+		baseURL = defaultBaseURL
+	}
+	port := config.Port
+	if port == "" {
+		port = "8080"
+	}
+
+	// Очистить и заново отсканировать mods и client_files
+	config.Mods = nil
+	config.ClientFiles = nil
+
+	modsPath := filepath.Join(config.FilesPath, "mods")
+	if err := scanMods(modsPath, baseURL, port, &config); err != nil {
+		return fmt.Errorf("ошибка сканирования модов: %w", err)
+	}
+
+	versionsPath := filepath.Join(config.FilesPath, "versions")
+	if err := scanVersions(versionsPath, baseURL, port, &config); err != nil {
+		return fmt.Errorf("ошибка сканирования версий: %w", err)
+	}
+
+	// Обновить minecraft_version из client_files
+	if len(config.ClientFiles) > 0 {
+		for _, file := range config.ClientFiles {
+			if idx := strings.Index(file.URL, "/versions/"); idx != -1 {
+				pathPart := file.URL[idx+len("/versions/"):]
+				if slashIdx := strings.Index(pathPart, "/"); slashIdx != -1 {
+					config.MinecraftVersion = pathPart[:slashIdx]
+					break
+				}
+			}
+		}
+	}
+
+	data, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return fmt.Errorf("ошибка кодирования конфигурации: %w", err)
+	}
+	if err := os.WriteFile("config.json", data, 0644); err != nil {
+		return fmt.Errorf("ошибка сохранения config.json: %w", err)
+	}
+
+	log.Printf("Пересчитано: %d модов, %d client_files", len(config.Mods), len(config.ClientFiles))
+	return nil
+}
+
 // scanMods сканирует директорию с модами
 func scanMods(modsPath string, baseURL string, port string, config *Config) error {
 	// Проверить существование директории

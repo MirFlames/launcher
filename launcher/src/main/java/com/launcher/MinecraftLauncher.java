@@ -2,6 +2,7 @@ package com.launcher;
 
 import com.launcher.dto.AuthSession;
 import com.launcher.dto.MinecraftLaunchConfig;
+import com.launcher.dto.ServerVersion;
 import com.launcher.dto.modpack.ModpackConfig;
 import com.launcher.dto.modpack.ModpackLibrary;
 import org.slf4j.Logger;
@@ -27,6 +28,17 @@ public class MinecraftLauncher {
 
         File minecraftFolder = MinecraftConfigLoader.getMinecraftFolder();
         log.info("MinecraftLauncher: minecraftFolder: {}", minecraftFolder.getAbsolutePath());
+
+        // Загрузка модов с сервера (если доступен /api/version)
+        String apiBaseUrl = LauncherConfigLoader.getApiBaseUrl();
+        ServerVersion version = ServerVersionClient.fetch(apiBaseUrl).orElse(null);
+        if (version != null && version.mods() != null && !version.mods().isEmpty()) {
+            if (!ModDownloader.ensureMods(minecraftFolder, version.mods(), parentFrame)) {
+                throw new IOException("Не удалось загрузить моды с сервера");
+            }
+        } else if (version == null) {
+            log.warn("Сервер недоступен, моды не загружены. Проверьте api_base_url в configs/launcher-config.json");
+        }
 
         String javaExePath = JDKManager.ensureJDKInstalled(minecraftFolder, parentFrame);
         if (javaExePath == null) {
