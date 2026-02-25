@@ -9,12 +9,15 @@ allprojects {
     
     repositories {
         mavenCentral()
+        if (project.path.startsWith(':mods:')) {
+            maven { url 'https://maven.fabricmc.net/' }
+        }
     }
 }
 
 subprojects {
-    // Применяем Java plugin только к Java модулям
-    if (project.name != 'backend') {
+    // Применяем Java plugin только к Java модулям (mods используют fabric-loom)
+    if (project.name != 'backend' && !project.path.startsWith(':mods:')) {
         apply plugin: 'java'
         
         java {

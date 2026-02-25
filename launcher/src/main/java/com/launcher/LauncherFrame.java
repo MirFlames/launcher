@@ -24,9 +24,11 @@ public class LauncherFrame extends JFrame {
     private static final Color TEXT_COLOR = new Color(240, 240, 240);
     private static final Color BUTTON_COLOR = new Color(50, 50, 55);
     private static final Color BUTTON_HOVER = new Color(60, 60, 65);
+    private static final Color PLAY_BUTTON_GREEN = new Color(0x33, 0xCC, 0x33);
+    private static final Color LOGIN_BUTTON_BLUE = new Color(0x4A, 0x90, 0xD9);
+    private static final int PLAY_BUTTON_WIDTH = 200;
+    private static final int PLAY_BUTTON_HEIGHT = 60;
     private BufferedImage backgroundImage;
-    private BufferedImage playButtonBackground;
-    private BufferedImage playButton;
     private BufferedImage settingsButton;
     private BufferedImage closeButton;
     private int imageWidth = 900;
@@ -90,30 +92,6 @@ public class LauncherFrame extends JFrame {
 
     private void loadButtonImages() {
         try {
-            // Загрузка фона кнопки
-            InputStream bgStream = getClass().getResourceAsStream("/images/play_button_background.png");
-            if (bgStream != null) {
-                playButtonBackground = ImageIO.read(bgStream);
-                bgStream.close();
-            } else {
-                File bgFile = new File("resources/images/play_button_background.png");
-                if (bgFile.exists()) {
-                    playButtonBackground = ImageIO.read(bgFile);
-                }
-            }
-            
-            // Загрузка текста кнопки
-            InputStream textStream = getClass().getResourceAsStream("/images/play_button.png");
-            if (textStream != null) {
-                playButton = ImageIO.read(textStream);
-                textStream.close();
-            } else {
-                File textFile = new File("resources/images/play_button.png");
-                if (textFile.exists()) {
-                    playButton = ImageIO.read(textFile);
-                }
-            }
-            
             // Загрузка кнопки закрытия
             InputStream closeStream = getClass().getResourceAsStream("/images/close_button.png");
             if (closeStream != null) {
@@ -265,14 +243,23 @@ public class LauncherFrame extends JFrame {
             @Override
             protected void paintComponent(Graphics g) {
                 super.paintComponent(g);
-                if (playButtonBackground != null) {
-                    g.drawImage(playButtonBackground, 0, 0, getWidth(), getHeight(), null);
-                }
-                if (LauncherFrame.this.playButton != null) {
-                    int x = (getWidth() - LauncherFrame.this.playButton.getWidth()) / 2 - 50;
-                    int y = (getHeight() - LauncherFrame.this.playButton.getHeight()) / 2;
-                    g.drawImage(LauncherFrame.this.playButton, x, y, null);
-                }
+                boolean authenticated = AuthService.isAuthenticated();
+                Color bgColor = authenticated ? PLAY_BUTTON_GREEN : LOGIN_BUTTON_BLUE;
+                String label = authenticated ? "Играть" : "Войти";
+
+                int w = getWidth();
+                int h = getHeight();
+                int[] xPoints = { 0, (int)(w * 0.75), w, (int)(w * 0.75), 0 };
+                int[] yPoints = { 0, 0, h / 2, h, h };
+                g.setColor(bgColor);
+                g.fillPolygon(xPoints, yPoints, 5);
+
+                g.setColor(Color.WHITE);
+                g.setFont(g.getFont().deriveFont(Font.BOLD, 20f));
+                FontMetrics fm = g.getFontMetrics();
+                int textX = (w - fm.stringWidth(label)) / 2;
+                int textY = (h + fm.getAscent()) / 2 - fm.getDescent();
+                g.drawString(label, textX, textY);
             }
         };
 
@@ -281,42 +268,51 @@ public class LauncherFrame extends JFrame {
         playButton.setFocusPainted(false);
         playButton.setOpaque(false);
 
-        // Установка размера кнопки
-        if (playButtonBackground != null) {
-            playButton.setBounds(0, 0, playButtonBackground.getWidth(), playButtonBackground.getHeight());
-        } else {
-            playButton.setBounds(0, 0, 200, 60);
-        }
+        playButton.setBounds(0, 0, PLAY_BUTTON_WIDTH, PLAY_BUTTON_HEIGHT);
 
         // Позиция кнопки (как в макете)
         playButton.setLocation(22, 318);
 
-        // Обработчик нажатия: запуск в фоне, чтобы EDT не блокировался и прогресс JDK отображался
         playButton.addActionListener(e -> {
             JButton btn = (JButton) e.getSource();
-            btn.setEnabled(false);
-            Thread worker = new Thread(() -> {
-                try {
-                    MinecraftLauncher.startMinecraft(LauncherFrame.this);
-                } catch (IOException ex) {
-                    log.error("Ошибка запуска Minecraft: {}", ex.getMessage(), ex);
-                    SwingUtilities.invokeLater(() -> {
-                        JOptionPane.showMessageDialog(LauncherFrame.this,
-                            "Ошибка запуска Minecraft: " + ex.getMessage(),
-                            "Ошибка", JOptionPane.ERROR_MESSAGE);
-                    });
-                } catch (Exception ex) {
-                    log.error("Ошибка запуска Minecraft: {}", ex.getMessage(), ex);
-                    SwingUtilities.invokeLater(() -> {
-                        JOptionPane.showMessageDialog(LauncherFrame.this,
-                            "Ошибка запуска Minecraft: " + ex.getMessage(),
-                            "Ошибка", JOptionPane.ERROR_MESSAGE);
-                    });
-                } finally {
-                    SwingUtilities.invokeLater(() -> btn.setEnabled(true));
-                }
-            }, "minecraft-start");
-            worker.start();
+            if (AuthService.isAuthenticated()) {
+                btn.setEnabled(false);
+                Thread worker = new Thread(() -> {
+                    try {
+                        MinecraftLauncher.startMinecraft(LauncherFrame.this);
+                    } catch (IOException ex) {
+                        log.error("Ошибка запуска Minecraft: {}", ex.getMessage(), ex);
+                        SwingUtilities.invokeLater(() -> {
+                            JOptionPane.showMessageDialog(LauncherFrame.this,
+                                "Ошибка запуска Minecraft: " + ex.getMessage(),
+                                "Ошибка", JOptionPane.ERROR_MESSAGE);
+                        });
+                    } catch (Exception ex) {
+                        log.error("Ошибка запуска Minecraft: {}", ex.getMessage(), ex);
+                        SwingUtilities.invokeLater(() -> {
+                            JOptionPane.showMessageDialog(LauncherFrame.this,
+                                "Ошибка запуска Minecraft: " + ex.getMessage(),
+                                "Ошибка", JOptionPane.ERROR_MESSAGE);
+                        });
+                    } finally {
+                        SwingUtilities.invokeLater(() -> btn.setEnabled(true));
+                    }
+                }, "minecraft-start");
+                worker.start();
+            } else {
+                btn.setEnabled(false);
+                AuthService.startLogin(
+                    () -> {
+                        btn.setEnabled(true);
+                        btn.repaint();
+                    },
+                    err -> {
+                        btn.setEnabled(true);
+                        btn.repaint();
+                        JOptionPane.showMessageDialog(LauncherFrame.this, err, "Ошибка входа", JOptionPane.ERROR_MESSAGE);
+                    }
+                );
+            }
         });
         playButtonComponent = playButton;
         return playButton;

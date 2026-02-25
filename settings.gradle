@@ -1,5 +1,14 @@
+pluginManagement {
+    repositories {
+        maven { url 'https://maven.fabricmc.net/' }
+        gradlePluginPortal()
+        mavenCentral()
+    }
+}
+
 rootProject.name = 'launcher-monorepo'
 
 include 'launcher'
 include 'updater'
 include 'backend'
+include 'mods:launcher_auth'

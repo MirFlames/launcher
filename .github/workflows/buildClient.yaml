@@ -1,0 +1,56 @@
+name: Build Client Native Image
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  build:
+    name: Native build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-14]
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup GraalVM
+        uses: graalvm/setup-graalvm@v1
+        with:
+          distribution: graalvm
+          java-version: '21'
+          components: 'native-image'
+          cache: gradle
+
+      - name: Grant execute permission (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: chmod +x gradlew
+
+      - name: Build Native Image
+        run: ./gradlew nativeCompile --no-daemon
+
+      - name: Rename binary (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir dist
+          cp build/native/nativeCompile/* dist/app-${{ runner.os }}
+
+      - name: Rename binary (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          mkdir dist
+          copy build\native\nativeCompile\*.exe dist\app-${{ runner.os }}.exe
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-${{ runner.os }}
+          path: dist/*

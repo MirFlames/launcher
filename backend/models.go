@@ -36,6 +36,9 @@ type Config struct {
 	LauncherHash     string `json:"launcher_hash"`
 	LauncherSize     int64  `json:"launcher_size"`
 	LauncherMandatory bool  `json:"launcher_mandatory"`
+	// Telegram бот для аутентификации
+	TelegramBotUsername string `json:"telegram_bot_username"`
+	TelegramBotToken    string `json:"telegram_bot_token"`
 	// Конфигурация JDK
 	JDK JDKInfo `json:"jdk"`
 }
@@ -56,4 +59,24 @@ type JDKInfo struct {
 	RelativePath   string `json:"relative_path"`  // Относительный путь от папки Minecraft
 	JavaExecutable string `json:"java_executable"` // Путь к java.exe относительно JDK
 	Mandatory      bool   `json:"mandatory"`
+}
+
+// AuthInitResponse — ответ на POST /api/auth/init
+type AuthInitResponse struct {
+	Code    string `json:"code"`
+	BotURL  string `json:"bot_url"`
+}
+
+// AuthCheckResponse — ответ на GET /api/auth/check?code=XXX
+type AuthCheckResponse struct {
+	Status       string `json:"status"` // "pending" или "authenticated"
+	Nickname     string `json:"nickname,omitempty"`
+	SessionUUID  string `json:"session_uuid,omitempty"`
+}
+
+// AuthCompleteRequest — тело запроса POST /api/auth/complete
+type AuthCompleteRequest struct {
+	Code       string `json:"code"`
+	Nickname   string `json:"nickname"`
+	TelegramID int64  `json:"telegram_id"`
 }

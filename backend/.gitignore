@@ -21,5 +21,8 @@ go.work
 # Config with sensitive data (if needed)
 # config.json
 
+# Auth sessions (survive restart, contain nicknames)
+valid-sessions.json
+
 # Files directory
 files/

@@ -66,16 +66,27 @@ public record ModpackLaunchContext(
 
     public static ModpackLaunchContext create(String gameDir, String assetsRoot, String assetsIndexName,
                                               String playerName, String versionId) {
+        return create(gameDir, assetsRoot, assetsIndexName, playerName, versionId, null, null);
+    }
+
+    /**
+     * Создаёт контекст с учётом аутентификации (никнейм, session UUID).
+     */
+    public static ModpackLaunchContext create(String gameDir, String assetsRoot, String assetsIndexName,
+                                              String playerName, String versionId,
+                                              String authUuid, String authAccessToken) {
         String base = gameDir.replace('\\', '/');
         String assets = assetsRoot != null ? assetsRoot : base + "/assets";
+        String uuid = authUuid != null && !authUuid.isBlank() ? authUuid : "00000000-0000-0000-0000-000000000000";
+        String token = authAccessToken != null && !authAccessToken.isBlank() ? authAccessToken : "0";
         return new ModpackLaunchContext(
                 base,
                 assets,
                 assetsIndexName != null ? assetsIndexName : "29",
                 playerName != null ? playerName : "Player",
                 versionId != null ? versionId : "modpack",
-                "00000000-0000-0000-0000-000000000000",
-                "0",
+                uuid,
+                token,
                 "0",
                 "0",
                 "fabric",

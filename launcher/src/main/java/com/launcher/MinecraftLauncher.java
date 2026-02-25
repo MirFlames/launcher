@@ -1,5 +1,6 @@
 package com.launcher;
 
+import com.launcher.dto.AuthSession;
 import com.launcher.dto.MinecraftLaunchConfig;
 import com.launcher.dto.modpack.ModpackConfig;
 import com.launcher.dto.modpack.ModpackLibrary;
@@ -119,8 +120,12 @@ public class MinecraftLauncher {
         // Game args
         String assetsRoot = base + File.separator + "assets";
         String assetsIndex = modpack.assets() != null ? modpack.assets() : "29";
+        AuthSession auth = AuthService.getSession().orElse(null);
+        String playerName = auth != null ? auth.nickname() : "Player";
+        String sessionUuid = auth != null ? auth.sessionUuid() : null;
         ModpackLaunchContext ctx = ModpackLaunchContext.create(
-                base, assetsRoot, assetsIndex, "Player", modpack.id());
+                base, assetsRoot, assetsIndex, playerName, modpack.id(),
+                sessionUuid, sessionUuid);
         List<String> gameArgs = ModpackConfigLoader.resolveGameArguments(modpack, ctx);
 
         String mainClass = modpack.mainClass();

@@ -1,0 +1,13 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.launcher.auth.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "GameProfileAccessor",
+    "ServerLoginNetworkHandlerMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "launcher_auth",
+  "version": "${version}",
+  "name": "Launcher Auth",
+  "description": "Ограничивает подключение к серверу только для аутентифицированных через лаунчер игроков",
+  "authors": ["Launcher"],
+  "contact": {},
+  "license": "MIT",
+  "environment": "server",
+  "entrypoints": {
+    "server": ["com.launcher.auth.LauncherAuthMod"]
+  },
+  "mixins": [
+    "launcher_auth.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.18.0",
+    "minecraft": "~1.21.11",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
