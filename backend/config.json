@@ -193,6 +193,11 @@
       "name": "weaponmaster_ydm-fabric-1.21.11-4.4.4.jar",
       "url": "http://localhost:80/files/mods/weaponmaster_ydm-fabric-1.21.11-4.4.4.jar",
       "hash": "5925f5983667f20b1234f77a8b7c7551579c390bda2719596c28bdbc113e8e2b"
+    },
+    {
+      "name": "launcher_auto_connect-1.0.0.jar",
+      "url": "http://localhost:80/files/mods/launcher_auto_connect-1.0.0.jar",
+      "hash": "d404aa87cb656c5987e341fc24c11efdcbbea3f53b79e87fd7a8b0b3f2f26ef5"
     }
   ],
   "files_path": "./files",

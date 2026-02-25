@@ -43,5 +43,38 @@ public final class LauncherConfigLoader {
         return Consts.API_BASE_URL;
     }
 
-    private record LauncherConfig(@JsonProperty("api_base_url") String apiBaseUrl) {}
+    private record LauncherConfig(
+            @JsonProperty("api_base_url") String apiBaseUrl,
+            @JsonProperty("server_host") String serverHost,
+            @JsonProperty("server_port") Integer serverPort) {}
+
+    /**
+     * Возвращает хост сервера для автоподключения. По умолчанию localhost.
+     */
+    public static String getServerHost() {
+        LauncherConfig cfg = loadConfig();
+        return (cfg != null && cfg.serverHost() != null && !cfg.serverHost().isBlank())
+                ? cfg.serverHost().trim() : "localhost";
+    }
+
+    /**
+     * Возвращает порт сервера для автоподключения. По умолчанию 25565.
+     */
+    public static int getServerPort() {
+        LauncherConfig cfg = loadConfig();
+        return (cfg != null && cfg.serverPort() != null && cfg.serverPort() > 0)
+                ? cfg.serverPort() : 25565;
+    }
+
+    private static LauncherConfig loadConfig() {
+        File minecraftFolder = MinecraftConfigLoader.getMinecraftFolder();
+        File configFile = new File(minecraftFolder, CONFIG_FILE);
+        if (!configFile.exists()) return null;
+        try {
+            return MAPPER.readValue(configFile, LauncherConfig.class);
+        } catch (IOException e) {
+            log.warn("Не удалось прочитать {}: {}", configFile.getAbsolutePath(), e.getMessage());
+            return null;
+        }
+    }
 }
