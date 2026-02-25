@@ -1,3 +1,15 @@
+# Документация проекта Launcher
+
+## Разделы
+
+| Документ | Описание |
+|----------|----------|
+| [modpack-specification.md](./modpack-specification.md) | Спецификация `modpack.json` — полный манифест версии Minecraft |
+| [launcher-development.md](./launcher-development.md) | Руководство по разработке лаунчера, архитектура, конфиги |
+| [README.md](./README.md) | API Backend и Swagger UI (ниже) |
+
+---
+
 # API документация Backend
 
 OpenAPI 3.0 спецификация для тестирования хендлеров Backend в браузере.
@@ -6,14 +18,16 @@ OpenAPI 3.0 спецификация для тестирования хендл�
 
 ```
 docs/
-├── openapi.yaml      # Главный файл спецификации
-├── index.html        # Swagger UI для интерактивного тестирования
-├── paths/            # Описание эндпоинтов
+├── openapi.yaml           # Главный файл спецификации
+├── modpack-specification.md  # Спецификация modpack.json
+├── launcher-development.md   # Руководство по разработке
+├── index.html             # Swagger UI для интерактивного тестирования
+├── paths/                 # Описание эндпоинтов
 │   ├── version.yaml
 │   ├── launcher.yaml
 │   ├── jdk.yaml
 │   └── files.yaml
-└── schemas/          # Схемы данных
+└── schemas/               # Схемы данных
     ├── common.yaml
     ├── version.yaml
     ├── launcher.yaml

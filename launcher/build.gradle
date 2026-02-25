@@ -303,6 +303,14 @@ tasks.named('nativeCompile').configure {
     finalizedBy 'removeConsoleWindow'
 }
 
+// Исключаем nativeCompile/jre_default из очистки при пересборке
+// (JRE может быть скачан/установлен вручную для дистрибутива)
+// tasks.named('clean', Delete).configure {
+//     delete = fileTree(dir: layout.buildDirectory.get().asFile) {
+//         exclude '**/nativeCompile/jre_default/**'
+//     }
+// }
+
 // ============================================================================
 // Копирование конфигурационных файлов в папку с исполняемым файлом
 // ============================================================================
