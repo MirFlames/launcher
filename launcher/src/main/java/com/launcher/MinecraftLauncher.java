@@ -14,6 +14,8 @@ import javax.swing.SwingUtilities;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -45,10 +47,43 @@ public class MinecraftLauncher {
             throw new IOException("Не удалось установить или найти JDK");
         }
 
+        ensureFullscreenEnabled(minecraftFolder);
+
         if (ModpackConfigLoader.exists(minecraftFolder)) {
             launchFromModpack(minecraftFolder, javaExePath, parentFrame);
         } else {
             launchFromLegacyConfig(minecraftFolder, javaExePath);
+        }
+    }
+
+    /**
+     * Устанавливает fullscreen:true в options.txt, чтобы Minecraft запускался в полноэкранном режиме.
+     */
+    private static void ensureFullscreenEnabled(File minecraftFolder) {
+        File optionsFile = new File(minecraftFolder, "options.txt");
+        try {
+            List<String> lines;
+            if (optionsFile.exists()) {
+                lines = new ArrayList<>(Files.readAllLines(optionsFile.toPath(), StandardCharsets.UTF_8));
+                boolean found = false;
+                for (int i = 0; i < lines.size(); i++) {
+                    if (lines.get(i).trim().startsWith("fullscreen:")) {
+                        lines.set(i, "fullscreen:true");
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    lines.add("fullscreen:true");
+                }
+            } else {
+                optionsFile.getParentFile().mkdirs();
+                lines = List.of("fullscreen:true");
+            }
+            Files.write(optionsFile.toPath(), lines, StandardCharsets.UTF_8);
+            log.info("MinecraftLauncher: fullscreen enabled in options.txt");
+        } catch (IOException e) {
+            log.warn("Не удалось установить fullscreen в options.txt: {}", e.getMessage());
         }
     }
 
