@@ -1,10 +1,13 @@
 package com.launcher;
 
 import com.launcher.dto.MinecraftLaunchConfig;
+import com.launcher.dto.modpack.ModpackConfig;
+import com.launcher.dto.modpack.ModpackLibrary;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.JFrame;
+import javax.swing.SwingUtilities;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -12,6 +15,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class MinecraftLauncher {
 
@@ -28,6 +32,120 @@ public class MinecraftLauncher {
             throw new IOException("Не удалось установить или найти JDK");
         }
 
+        if (ModpackConfigLoader.exists(minecraftFolder)) {
+            launchFromModpack(minecraftFolder, javaExePath, parentFrame);
+        } else {
+            launchFromLegacyConfig(minecraftFolder, javaExePath);
+        }
+    }
+
+    /**
+     * Запуск по modpack.json (формат Mojang/Fabric).
+     */
+    private static void launchFromModpack(File minecraftFolder, String javaExePath, JFrame parentFrame) throws IOException {
+        ModpackConfig modpack = ModpackConfigLoader.load(minecraftFolder);
+        String currentOs = ModpackConfigLoader.getCurrentOs();
+        String base = minecraftFolder.getAbsolutePath();
+        // Используем / для путей в JVM-аргументах (совместимо с Java/JNI на всех ОС)
+        String nativesPath = (base + File.separator + "natives").replace('\\', '/');
+
+        // Скачивание отсутствующих client.jar и библиотек
+        ensureModpackFiles(minecraftFolder, modpack, currentOs, parentFrame);
+
+        // Client JAR: versions/{id}/{id}.jar или versions/{id}/client.jar
+        String versionId = modpack.id() != null ? modpack.id() : "modpack";
+        File clientJar = new File(minecraftFolder, "versions" + File.separator + versionId + File.separator + versionId + ".jar");
+        if (!clientJar.exists()) {
+            clientJar = new File(minecraftFolder, "versions" + File.separator + versionId + File.separator + "client.jar");
+        }
+        if (!clientJar.exists()) {
+            throw new IOException("Client JAR не найден. Проверьте папку versions/" + versionId + "/ " +
+                    "(ожидается " + versionId + ".jar или client.jar). Убедитесь, что модпак полностью установлен.");
+        }
+
+        // Classpath: client + libraries (без natives)
+        List<String> cp = new ArrayList<>();
+        cp.add(clientJar.getAbsolutePath());
+
+        for (ModpackLibrary lib : modpack.libraries()) {
+            if (lib == null) continue;
+            if (!ModpackConfigLoader.libraryApplies(lib, currentOs)) continue;
+
+            File libFile = ModpackConfigLoader.getLibraryFile(minecraftFolder, lib);
+            if (libFile != null && libFile.exists()) {
+                cp.add(libFile.getAbsolutePath());
+            } else if (!ModpackConfigLoader.isNativeLibrary(lib)) {
+                log.warn("Library not found, skipping: {}", libFile != null ? libFile.getAbsolutePath() : lib.name());
+            }
+        }
+
+        // LWJGL 3 загружает natives из JAR через SharedLibraryLoader при наличии в classpath.
+        // Дополнительно извлекаем в natives/ для -Djava.library.path (fallback).
+        File nativesDir = new File(nativesPath);
+        nativesDir.mkdirs();
+        for (ModpackLibrary lib : modpack.libraries()) {
+            if (lib == null || !ModpackConfigLoader.libraryApplies(lib, currentOs)) continue;
+            if (!ModpackConfigLoader.isNativeLibrary(lib)) continue;
+
+            File libFile = ModpackConfigLoader.getLibraryFile(minecraftFolder, lib);
+            if (libFile != null && libFile.exists()) {
+                try {
+                    NativesExtractor.extract(libFile, nativesDir);
+                } catch (IOException e) {
+                    log.warn("Failed to extract natives from {}: {}", libFile.getName(), e.getMessage());
+                }
+            }
+        }
+
+        // Скачивание индекса ассетов (assets/indexes/29.json)
+        ensureAssetIndex(minecraftFolder, modpack);
+
+        // Скачивание отсутствующих ассетов (текстуры, звуки и т.д.)
+        String assetsIndexId = modpack.assets() != null ? modpack.assets() : "29";
+        File assetIndexFile = new File(minecraftFolder, "assets" + File.separator + "indexes" + File.separator + assetsIndexId + ".json");
+        File assetsDir = new File(minecraftFolder, "assets");
+        AssetDownloader.ensureAssets(assetsDir, assetIndexFile, parentFrame);
+
+        String classpath = String.join(File.pathSeparator, cp);
+        if (cp.size() <= 1) {
+            throw new IOException("Classpath пуст или содержит только client.jar. Проверьте папку libraries.");
+        }
+
+        // JVM args из modpack
+        List<String> jvmArgs = ModpackConfigLoader.resolveJvmArguments(
+                modpack, nativesPath, classpath,
+                "custom", Consts.LAUNCHER_VERSION);
+
+        // Game args
+        String assetsRoot = base + File.separator + "assets";
+        String assetsIndex = modpack.assets() != null ? modpack.assets() : "29";
+        ModpackLaunchContext ctx = ModpackLaunchContext.create(
+                base, assetsRoot, assetsIndex, "Player", modpack.id());
+        List<String> gameArgs = ModpackConfigLoader.resolveGameArguments(modpack, ctx);
+
+        String mainClass = modpack.mainClass();
+        if (mainClass == null || mainClass.isBlank()) {
+            throw new IOException("В modpack.json не указан mainClass");
+        }
+
+        List<String> cmd = new ArrayList<>();
+        cmd.add(javaExePath);
+        cmd.addAll(jvmArgs);
+        cmd.add(mainClass);
+        cmd.addAll(gameArgs);
+
+        log.info("MinecraftLauncher: starting process (modpack), mainClass={}", mainClass);
+        Process proc = new ProcessBuilder(cmd)
+                .directory(minecraftFolder)
+                .inheritIO()
+                .start();
+        log.info("MinecraftLauncher: game process started, pid={}", proc.pid());
+    }
+
+    /**
+     * Запуск по minecraft-launch-config.json (legacy).
+     */
+    private static void launchFromLegacyConfig(File minecraftFolder, String javaExePath) throws IOException {
         MinecraftLaunchConfig cfg = MinecraftConfigLoader.load();
         log.info("MinecraftLauncher: javaPath: {}", javaExePath);
 
@@ -104,12 +222,100 @@ public class MinecraftLauncher {
         cmd.add(mainClass);
         cmd.addAll(gameArgs);
 
-        log.info("MinecraftLauncher: starting process, mainClass={}", mainClass);
+        log.info("MinecraftLauncher: starting process (legacy), mainClass={}", mainClass);
         Process proc = new ProcessBuilder(cmd)
                 .directory(minecraftFolder)
                 .inheritIO()
                 .start();
         log.info("MinecraftLauncher: game process started, pid={}", proc.pid());
+    }
+
+    /**
+     * Скачивает индекс ассетов (assets/indexes/{id}.json) при отсутствии.
+     */
+    private static void ensureAssetIndex(File minecraftFolder, ModpackConfig modpack) {
+        var assetIndex = modpack.assetIndex();
+        if (assetIndex == null || assetIndex.url() == null || assetIndex.url().isBlank()) return;
+
+        String id = assetIndex.id() != null ? assetIndex.id() : modpack.assets();
+        if (id == null || id.isBlank()) id = "29";
+
+        File indexFile = new File(minecraftFolder, "assets" + File.separator + "indexes" + File.separator + id + ".json");
+        if (indexFile.exists()) return;
+
+        log.info("Скачивание индекса ассетов: {}", id);
+        indexFile.getParentFile().mkdirs();
+        LibraryDownloader.downloadFile(assetIndex.url(), indexFile, assetIndex.size() != null ? assetIndex.size() : 0, null);
+    }
+
+    /**
+     * Скачивает отсутствующие client.jar и библиотеки.
+     */
+    private static void ensureModpackFiles(File minecraftFolder, ModpackConfig modpack, String currentOs,
+                                           JFrame parentFrame) throws IOException {
+        String versionId = modpack.id() != null ? modpack.id() : "modpack";
+        File clientJar = new File(minecraftFolder, "versions" + File.separator + versionId + File.separator + versionId + ".jar");
+        File clientJarAlt = new File(minecraftFolder, "versions" + File.separator + versionId + File.separator + "client.jar");
+        boolean needClientJar = !clientJar.exists() && !clientJarAlt.exists();
+        if (needClientJar && (modpack.downloads() == null || modpack.downloads().client() == null
+                || modpack.downloads().client().url() == null || modpack.downloads().client().url().isBlank())) {
+            needClientJar = false; // нет URL для скачивания
+        }
+
+        List<ModpackLibrary> missingLibs = new ArrayList<>();
+        for (ModpackLibrary lib : modpack.libraries()) {
+            if (lib == null || !ModpackConfigLoader.libraryApplies(lib, currentOs)) continue;
+            if (lib.artifact() == null || lib.artifact().url() == null || lib.artifact().url().isBlank()) continue;
+            File dest = ModpackConfigLoader.getLibraryFile(minecraftFolder, lib);
+            if (dest != null && !dest.exists()) missingLibs.add(lib);
+        }
+
+        int total = (needClientJar ? 1 : 0) + missingLibs.size();
+        if (total == 0) return;
+
+        AtomicReference<ProgressBar> progressBarRef = new AtomicReference<>();
+        SwingUtilities.invokeLater(() -> {
+            ProgressBar pb = new ProgressBar(parentFrame, "Скачивание файлов модпака");
+            pb.setVisible(true);
+            progressBarRef.set(pb);
+        });
+        while (progressBarRef.get() == null) {
+            try { Thread.sleep(50); } catch (InterruptedException ignored) {}
+        }
+        ProgressBar progressBar = progressBarRef.get();
+
+        try {
+            int[] done = {0};
+            if (needClientJar) {
+                progressBar.setStatus("Скачивание client.jar...");
+                if (!LibraryDownloader.ensureClientJar(minecraftFolder, modpack, p ->
+                        SwingUtilities.invokeLater(() -> {
+                            progressBar.setProgress((done[0] + p) / (double) total);
+                            progressBar.setStatus(String.format("Скачивание client.jar... %.0f%%", p * 100));
+                        }))) {
+                    throw new IOException("Не удалось скачать client.jar");
+                }
+                done[0]++;
+            }
+
+            for (ModpackLibrary lib : missingLibs) {
+                String name = lib.name();
+                int completedBefore = done[0];
+                progressBar.setStatus(String.format("Скачивание %s (%d/%d)...", name, completedBefore + 1, total));
+                if (!LibraryDownloader.ensureLibrary(minecraftFolder, lib, p ->
+                        SwingUtilities.invokeLater(() ->
+                                progressBar.setProgress((completedBefore + p) / (double) total)))) {
+                    throw new IOException("Не удалось скачать библиотеку: " + name);
+                }
+                done[0]++;
+                SwingUtilities.invokeLater(() -> progressBar.setProgress((double) done[0] / total));
+            }
+        } finally {
+            SwingUtilities.invokeLater(() -> {
+                progressBar.setVisible(false);
+                progressBar.dispose();
+            });
+        }
     }
 
     private static String resolvePath(String path, String baseNorm) {
