@@ -227,6 +227,7 @@ func main() {
 	mux.HandleFunc("/api/auth/check", cors.wrap(handleAuthCheck))
 	mux.HandleFunc("/api/auth/complete", cors.wrap(handleAuthComplete))
 	mux.HandleFunc("/api/auth/verify", cors.wrap(handleAuthVerify))
+	mux.HandleFunc("/api/auth/invalidate", cors.wrap(handleAuthInvalidate))
 	mux.HandleFunc("/files/", cors.wrap(handleFileDownload))
 
 	port := config.Port
@@ -291,6 +292,9 @@ func loadConfig(filename string) error {
 	// Токен бота: переменная окружения имеет приоритет (безопасность)
 	if envToken := os.Getenv("TELEGRAM_BOT_TOKEN"); envToken != "" {
 		config.TelegramBotToken = envToken
+	}
+	if config.TelegramRequiredChannel == "" {
+		config.TelegramRequiredChannel = "@mc_fam"
 	}
 
 	return nil
@@ -670,4 +674,42 @@ func handleAuthVerify(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	json.NewEncoder(w).Encode(map[string]bool{"valid": valid})
+}
+
+// handleAuthInvalidate обрабатывает POST /api/auth/invalidate?nickname=X или ?session_uuid=Y
+// Удаляет сессию из valid-sessions.json (обнуление сессии пользователя)
+func handleAuthInvalidate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost && r.Method != http.MethodGet {
+		http.Error(w, "Метод не разрешен", http.StatusMethodNotAllowed)
+		return
+	}
+
+	nickname := strings.TrimSpace(r.URL.Query().Get("nickname"))
+	sessionUUID := strings.TrimSpace(r.URL.Query().Get("session_uuid"))
+
+	if nickname == "" && sessionUUID == "" {
+		http.Error(w, "Укажите nickname или session_uuid", http.StatusBadRequest)
+		return
+	}
+
+	validSessions.Lock()
+	if sessionUUID != "" {
+		if _, ok := validSessions.m[sessionUUID]; ok {
+			delete(validSessions.m, sessionUUID)
+			log.Printf("[Auth] Инвалидация по session_uuid: %s", sessionUUID)
+		}
+	} else {
+		for uuid, entry := range validSessions.m {
+			if strings.EqualFold(entry.Nickname, nickname) {
+				delete(validSessions.m, uuid)
+				log.Printf("[Auth] Инвалидация по nickname: %s (uuid=%s)", nickname, uuid)
+				break
+			}
+		}
+	}
+	validSessions.Unlock()
+	saveValidSessions()
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }

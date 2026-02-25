@@ -37,8 +37,9 @@ type Config struct {
 	LauncherSize     int64  `json:"launcher_size"`
 	LauncherMandatory bool  `json:"launcher_mandatory"`
 	// Telegram бот для аутентификации
-	TelegramBotUsername string `json:"telegram_bot_username"`
-	TelegramBotToken    string `json:"telegram_bot_token"`
+	TelegramBotUsername    string `json:"telegram_bot_username"`
+	TelegramBotToken       string `json:"telegram_bot_token"`
+	TelegramRequiredChannel string `json:"telegram_required_channel"` // Канал для обязательной подписки (например @mc_fam)
 	// Конфигурация JDK
 	JDK JDKInfo `json:"jdk"`
 }

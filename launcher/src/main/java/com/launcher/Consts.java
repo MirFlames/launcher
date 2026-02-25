@@ -17,4 +17,5 @@ public class Consts {
     public static String API_AUTH_CHECK = "/api/auth/check";
     public static String API_AUTH_COMPLETE = "/api/auth/complete";
     public static String API_AUTH_VERIFY = "/api/auth/verify";
+    public static String API_AUTH_INVALIDATE = "/api/auth/invalidate";
 }

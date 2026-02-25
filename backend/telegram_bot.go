@@ -16,20 +16,98 @@ type pendingNickname struct {
 	createdAt time.Time
 }
 
+// pendingSubscription — пользователь ожидает проверки подписки на канал
+type pendingSubscription struct {
+	code      string
+	createdAt time.Time
+}
+
 var (
 	nicknamePending = struct {
 		sync.RWMutex
 		m map[int64]pendingNickname
 	}{m: make(map[int64]pendingNickname)}
+	subscriptionPending = struct {
+		sync.RWMutex
+		m map[int64]pendingSubscription
+	}{m: make(map[int64]pendingSubscription)}
 )
 
 const nicknamePendingTTL = 5 * time.Minute
+const subscriptionPendingTTL = 10 * time.Minute
 
 // Minecraft nickname: 3-16 символов, буквы, цифры, подчёркивание
 var nicknameRegex = regexp.MustCompile(`^[a-zA-Z0-9_]{3,16}$`)
 
 func isValidNickname(s string) bool {
 	return nicknameRegex.MatchString(strings.TrimSpace(s))
+}
+
+// getRequiredChannel возвращает канал для проверки подписки (пустая строка = проверка отключена)
+func getRequiredChannel() string {
+	return strings.TrimSpace(config.TelegramRequiredChannel)
+}
+
+// checkSubscription проверяет, подписан ли пользователь на требуемый канал.
+// Бот должен быть администратором канала. Возвращает true если подписан или проверка отключена.
+func checkSubscription(bot *tgbotapi.BotAPI, userID int64) bool {
+	channel := getRequiredChannel()
+	if channel == "" {
+		return true
+	}
+	if !strings.HasPrefix(channel, "@") {
+		channel = "@" + channel
+	}
+	req := tgbotapi.GetChatMemberConfig{
+		ChatConfigWithUser: tgbotapi.ChatConfigWithUser{SuperGroupUsername: channel, UserID: userID},
+	}
+	member, err := bot.GetChatMember(req)
+	if err != nil {
+		log.Printf("[Telegram] Ошибка проверки подписки user_id=%d: %v", userID, err)
+		return false
+	}
+	status := member.Status
+	return status == "member" || status == "administrator" || status == "creator"
+}
+
+// sendSubscriptionRequired отправляет сообщение с кнопками подписки и проверки
+func sendSubscriptionRequired(bot *tgbotapi.BotAPI, chatID int64, code string) {
+	channel := getRequiredChannel()
+	if channel == "" {
+		return
+	}
+	if !strings.HasPrefix(channel, "@") {
+		channel = "@" + channel
+	}
+	msg := tgbotapi.NewMessage(chatID, "Для входа необходимо подписаться на канал.\n\nПодпишитесь и нажмите «Проверить подписку»:")
+	msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonURL("Подписаться", "https://t.me/"+strings.TrimPrefix(channel, "@")),
+			tgbotapi.NewInlineKeyboardButtonData("Проверить подписку", "check_sub"),
+		),
+	)
+	if _, err := bot.Send(msg); err != nil {
+		log.Printf("[Telegram] Ошибка отправки сообщения: %v", err)
+	}
+}
+
+// proceedAfterSubscription выполняет сценарий после успешной проверки подписки (сессия или никнейм)
+func proceedAfterSubscription(bot *tgbotapi.BotAPI, chatID int64, userID int64, code, telegramUsername string) {
+	if stored, ok := getStoredEntryByTelegramID(userID); ok && stored.Nickname != "" {
+		if err := completeAuth(code, stored.Nickname, telegramUsername, userID); err != nil {
+			log.Printf("[Telegram] Ошибка completeAuth (возврат) для user_id=%d: %v", userID, err)
+			sendMessage(bot, chatID, "Ошибка при входе. Попробуйте снова.")
+		} else {
+			log.Printf("[Telegram] Возврат: user_id=%d, nickname=%s, code=%s", userID, stored.Nickname, code)
+			sendMessage(bot, chatID, "С возвращением! Вернитесь в лаунчер — кнопка изменится на «Играть».")
+		}
+		return
+	}
+	nicknamePending.Lock()
+	nicknamePending.m[userID] = pendingNickname{code: code, createdAt: time.Now()}
+	nicknamePending.Unlock()
+	log.Printf("[Telegram] Ожидание никнейма от user_id=%d для code=%s", userID, code)
+	sendMessage(bot, chatID, "Введите ваш никнейм для Minecraft (3–16 символов, латиница, цифры, подчёркивание):")
 }
 
 // StartTelegramBot запускает бота в фоне. Если токен пуст — не запускает.
@@ -54,6 +132,49 @@ func StartTelegramBot() {
 	updates := bot.GetUpdatesChan(u)
 
 	for update := range updates {
+		// Обработка callback (нажатие кнопки «Проверить подписку»)
+		if update.CallbackQuery != nil {
+			cb := update.CallbackQuery
+			userID := cb.From.ID
+			chatID := cb.Message.Chat.ID
+
+			if cb.Data == "check_sub" {
+				subscriptionPending.RLock()
+				pending, ok := subscriptionPending.m[userID]
+				subscriptionPending.RUnlock()
+
+				if ok {
+					if time.Since(pending.createdAt) > subscriptionPendingTTL {
+						subscriptionPending.Lock()
+						delete(subscriptionPending.m, userID)
+						subscriptionPending.Unlock()
+						answerCallback(bot, cb.ID, "Время ожидания истекло. Начните заново.")
+						sendMessage(bot, chatID, "Время ожидания истекло. Нажмите «Войти» в лаунчере и попробуйте снова.")
+						continue
+					}
+
+					if checkSubscription(bot, userID) {
+						subscriptionPending.Lock()
+						delete(subscriptionPending.m, userID)
+						subscriptionPending.Unlock()
+						answerCallback(bot, cb.ID, "Подписка подтверждена!")
+						telegramUsername := ""
+						if cb.From.UserName != "" {
+							telegramUsername = cb.From.UserName
+						}
+						proceedAfterSubscription(bot, chatID, userID, pending.code, telegramUsername)
+					} else {
+						answerCallback(bot, cb.ID, "Подписка не обнаружена")
+						sendMessage(bot, chatID, "Подписка не обнаружена. Подпишитесь на канал и нажмите «Проверить подписку» снова.")
+						sendSubscriptionRequired(bot, chatID, pending.code)
+					}
+				} else {
+					answerCallback(bot, cb.ID, "")
+				}
+			}
+			continue
+		}
+
 		if update.Message == nil {
 			continue
 		}
@@ -64,6 +185,35 @@ func StartTelegramBot() {
 		text := strings.TrimSpace(msg.Text)
 
 		log.Printf("[Telegram] Сообщение от %d (@%s): %s", userID, msg.From.UserName, text)
+
+		// Проверяем, ожидает ли пользователь проверки подписки
+		subscriptionPending.RLock()
+		subPending, subPendingOk := subscriptionPending.m[userID]
+		subscriptionPending.RUnlock()
+
+		if subPendingOk {
+			if time.Since(subPending.createdAt) > subscriptionPendingTTL {
+				subscriptionPending.Lock()
+				delete(subscriptionPending.m, userID)
+				subscriptionPending.Unlock()
+				sendMessage(bot, chatID, "Время ожидания истекло. Нажмите «Войти» в лаунчере и попробуйте снова.")
+				continue
+			}
+			if checkSubscription(bot, userID) {
+				subscriptionPending.Lock()
+				delete(subscriptionPending.m, userID)
+				subscriptionPending.Unlock()
+				telegramUsername := ""
+				if msg.From != nil && msg.From.UserName != "" {
+					telegramUsername = msg.From.UserName
+				}
+				proceedAfterSubscription(bot, chatID, userID, subPending.code, telegramUsername)
+			} else {
+				sendMessage(bot, chatID, "Подписка не обнаружена. Подпишитесь на канал и нажмите «Проверить подписку» или отправьте любое сообщение.")
+				sendSubscriptionRequired(bot, chatID, subPending.code)
+			}
+			continue
+		}
 
 		// Проверяем, ожидаем ли мы никнейм от этого пользователя
 		nicknamePending.RLock()
@@ -148,6 +298,15 @@ func StartTelegramBot() {
 			continue
 		}
 
+		// Проверка подписки на канал (перед проверкой сессии)
+		if getRequiredChannel() != "" && !checkSubscription(bot, userID) {
+			subscriptionPending.Lock()
+			subscriptionPending.m[userID] = pendingSubscription{code: code, createdAt: time.Now()}
+			subscriptionPending.Unlock()
+			sendSubscriptionRequired(bot, chatID, code)
+			continue
+		}
+
 		// Повторный вход: если у пользователя уже есть сессия — не спрашиваем никнейм
 		telegramUsername := ""
 		if msg.From != nil && msg.From.UserName != "" {
@@ -177,5 +336,12 @@ func sendMessage(bot *tgbotapi.BotAPI, chatID int64, text string) {
 	msg := tgbotapi.NewMessage(chatID, text)
 	if _, err := bot.Send(msg); err != nil {
 		log.Printf("[Telegram] Ошибка отправки сообщения: %v", err)
+	}
+}
+
+func answerCallback(bot *tgbotapi.BotAPI, callbackID string, text string) {
+	cfg := tgbotapi.NewCallback(callbackID, text)
+	if _, err := bot.Request(cfg); err != nil {
+		log.Printf("[Telegram] Ошибка answerCallback: %v", err)
 	}
 }

@@ -16,6 +16,7 @@ import java.util.function.Consumer;
 
 /**
  * Сервис аутентификации через Telegram-бот с polling.
+ * Использует кэш сессии и проверяет её валидность на backend при старте.
  */
 public final class AuthService {
 
@@ -24,21 +25,66 @@ public final class AuthService {
 
     private static final int POLL_INTERVAL_MS = 2000;
     private static final int TIMEOUT_MS = 5 * 60 * 1000; // 5 минут
+    private static final int VERIFY_TIMEOUT_MS = 5000;
+
+    /** Кэш сессии (null = ещё не загружен) */
+    private static volatile Optional<AuthSession> cachedSession = null;
 
     private AuthService() {}
+
+    private static void ensureCacheLoaded() {
+        if (cachedSession == null) {
+            cachedSession = AuthSessionStorage.load();
+        }
+    }
 
     /**
      * Проверяет, аутентифицирован ли игрок.
      */
     public static boolean isAuthenticated() {
-        return AuthSessionStorage.load().isPresent();
+        ensureCacheLoaded();
+        return cachedSession.isPresent();
     }
 
     /**
      * Возвращает текущую сессию (если есть).
      */
     public static Optional<AuthSession> getSession() {
-        return AuthSessionStorage.load();
+        ensureCacheLoaded();
+        return cachedSession;
+    }
+
+    /**
+     * Обновляет кэш сессии: загружает из файла, проверяет на backend.
+     * При valid=false удаляет сессию. При ошибке сети — оставляет (оптимистично).
+     *
+     * @param onComplete вызывается в EDT по завершении (для repaint кнопки)
+     */
+    public static void refreshSession(Runnable onComplete) {
+        new Thread(() -> {
+            Optional<AuthSession> loaded = AuthSessionStorage.load();
+            if (loaded.isEmpty()) {
+                cachedSession = Optional.empty();
+                invokeOnEdt(onComplete);
+                return;
+            }
+            AuthSession session = loaded.get();
+            Boolean valid = callAuthVerify(session.nickname(), session.sessionUuid());
+            if (Boolean.FALSE.equals(valid)) {
+                AuthSessionStorage.delete();
+                cachedSession = Optional.empty();
+                log.info("Сессия обнулена сервером, требуется повторный вход");
+            } else {
+                cachedSession = Optional.of(session);
+            }
+            invokeOnEdt(onComplete);
+        }, "auth-refresh").start();
+    }
+
+    private static void invokeOnEdt(Runnable r) {
+        if (r != null) {
+            javax.swing.SwingUtilities.invokeLater(r);
+        }
     }
 
     /**
@@ -61,6 +107,7 @@ public final class AuthService {
                 AuthSession session = pollUntilAuthenticated(initResp.code, onError);
                 if (session != null) {
                     AuthSessionStorage.save(session);
+                    cachedSession = Optional.of(session);
                     javax.swing.SwingUtilities.invokeLater(onSuccess);
                 }
             } catch (Exception e) {
@@ -75,6 +122,7 @@ public final class AuthService {
      */
     public static void logout() {
         AuthSessionStorage.delete();
+        cachedSession = Optional.empty();
     }
 
     private static void invokeOnError(Consumer<String> onError, String message) {
@@ -147,6 +195,33 @@ public final class AuthService {
         }
         invokeOnError(onError, "Время ожидания входа истекло. Попробуйте снова.");
         return null;
+    }
+
+    /**
+     * Проверяет сессию на backend. Возвращает true если валидна, false если нет, null при ошибке сети.
+     */
+    private static Boolean callAuthVerify(String nickname, String sessionUuid) {
+        try {
+            String urlStr = Consts.API_BASE_URL + Consts.API_AUTH_VERIFY
+                    + "?nickname=" + java.net.URLEncoder.encode(nickname, "UTF-8")
+                    + "&session_uuid=" + java.net.URLEncoder.encode(sessionUuid, "UTF-8");
+            HttpURLConnection conn = (HttpURLConnection) new URL(urlStr).openConnection();
+            conn.setRequestMethod("GET");
+            conn.setConnectTimeout(VERIFY_TIMEOUT_MS);
+            conn.setReadTimeout(VERIFY_TIMEOUT_MS);
+
+            int rc = conn.getResponseCode();
+            if (rc != HttpURLConnection.HTTP_OK) {
+                log.warn("Auth verify: HTTP {}", rc);
+                return null;
+            }
+
+            JsonNode json = MAPPER.readTree(conn.getInputStream());
+            return json.has("valid") && json.get("valid").asBoolean();
+        } catch (Exception e) {
+            log.debug("Auth verify failed: {}", e.getMessage());
+            return null;
+        }
     }
 
     private static AuthCheckResponse callAuthCheck(String code) {

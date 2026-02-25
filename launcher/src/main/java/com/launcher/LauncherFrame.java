@@ -47,6 +47,11 @@ public class LauncherFrame extends JFrame {
         log.info("loadButtonImages done");
         initializeUI();
         log.info("initializeUI done");
+        AuthService.refreshSession(() -> {
+            if (playButtonComponent != null) {
+                playButtonComponent.repaint();
+            }
+        });
     }
 
     private void loadFavicon() {

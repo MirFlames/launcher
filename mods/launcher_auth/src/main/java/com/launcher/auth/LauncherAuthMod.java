@@ -16,6 +16,7 @@ public class LauncherAuthMod implements DedicatedServerModInitializer {
     @Override
     public void onInitializeServer() {
         AuthConfig.load();
+        AuthInvalidateCommand.register();
         LOGGER.info("Launcher Auth загружен. API: {}", AuthConfig.getApiUrl());
     }
 }
