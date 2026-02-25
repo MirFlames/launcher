@@ -208,7 +208,7 @@
   "launcher_size": 0,
   "launcher_mandatory": false,
   "telegram_bot_username": "fam_mc_bot",
-  "telegram_bot_token": "8623264086:AAGVMoiUJfq7KuWmbq6gU54Jn7YPC4zGQpI",
+  "telegram_bot_token": "",
   "telegram_required_channel": "@mc_fam",
   "jdk": {
     "version": "21",
