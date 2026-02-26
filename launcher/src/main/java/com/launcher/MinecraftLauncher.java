@@ -73,6 +73,7 @@ public class MinecraftLauncher {
             progress.setIndeterminate(true);
         }
         ensureFullscreenEnabled(minecraftFolder);
+        ensureLanguageRussian(minecraftFolder);
 
         if (ModpackConfigLoader.exists(minecraftFolder)) {
             launchFromModpack(minecraftFolder, javaExePath, parentFrame, progress);
@@ -109,6 +110,37 @@ public class MinecraftLauncher {
             log.info("MinecraftLauncher: fullscreen enabled in options.txt");
         } catch (IOException e) {
             log.warn("Не удалось установить fullscreen в options.txt: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Устанавливает lang:ru_ru в options.txt, чтобы Minecraft запускался на русском языке.
+     */
+    private static void ensureLanguageRussian(File minecraftFolder) {
+        File optionsFile = new File(minecraftFolder, "options.txt");
+        try {
+            List<String> lines;
+            if (optionsFile.exists()) {
+                lines = new ArrayList<>(Files.readAllLines(optionsFile.toPath(), StandardCharsets.UTF_8));
+                boolean found = false;
+                for (int i = 0; i < lines.size(); i++) {
+                    if (lines.get(i).trim().startsWith("lang:")) {
+                        lines.set(i, "lang:ru_ru");
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    lines.add("lang:ru_ru");
+                }
+            } else {
+                optionsFile.getParentFile().mkdirs();
+                lines = List.of("lang:ru_ru");
+            }
+            Files.write(optionsFile.toPath(), lines, StandardCharsets.UTF_8);
+            log.info("MinecraftLauncher: lang set to ru_ru in options.txt");
+        } catch (IOException e) {
+            log.warn("Не удалось установить lang в options.txt: {}", e.getMessage());
         }
     }
 
