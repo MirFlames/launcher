@@ -185,11 +185,11 @@ func main() {
 
 		baseURL := os.Getenv("BASE_URL")
 		if baseURL == "" {
-			baseURL = "http://localhost"
+			baseURL = "http://62.182.138.124"
 		}
 		port := os.Getenv("PORT")
 		if port == "" {
-			port = "8080"
+			port = "80"
 		}
 		filesPath := os.Getenv("FILES_PATH")
 		if filesPath == "" {
@@ -232,7 +232,7 @@ func main() {
 
 	port := config.Port
 	if port == "" {
-		port = "8080"
+		port = "80"
 	}
 
 	go StartTelegramBot()
@@ -275,7 +275,7 @@ func loadConfig(filename string) error {
 		config.FilesPath = "./files"
 	}
 	if config.Port == "" {
-		config.Port = "8080"
+		config.Port = "80"
 	}
 	if config.LauncherVersion == "" {
 		config.LauncherVersion = "1.0.0"

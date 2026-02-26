@@ -12,7 +12,7 @@ import (
 	"strings"
 )
 
-const defaultBaseURL = "http://localhost"
+const defaultBaseURL = "http://62.182.138.124"
 
 // calculateFileHash вычисляет SHA-256 хеш файла
 func calculateFileHash(filePath string) (string, error) {
@@ -88,7 +88,7 @@ func generateConfig(filesPath string, port string, baseURL string) error {
 		baseURL = defaultBaseURL
 	}
 	if port == "" {
-		port = "8080"
+		port = "80"
 	}
 	if filesPath == "" {
 		filesPath = "./files"
@@ -148,7 +148,7 @@ func rescanConfig() error {
 	}
 	port := config.Port
 	if port == "" {
-		port = "8080"
+		port = "80"
 	}
 
 	// Очистить и заново отсканировать mods и client_files

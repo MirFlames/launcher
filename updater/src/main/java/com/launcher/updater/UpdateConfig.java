@@ -29,7 +29,7 @@ public class UpdateConfig {
     public static UpdateConfig parseArgs(String[] args) {
         String launcherPath = null;
         String updateUrl = null;
-        String apiUrl = "http://localhost:8080";
+        String apiUrl = "http://62.182.138.124:80";
         
         for (int i = 0; i < args.length; i++) {
             if ("--launcher-path".equals(args[i]) && i + 1 < args.length) {

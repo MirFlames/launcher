@@ -54,7 +54,7 @@ public final class LauncherConfigLoader {
     public static String getServerHost() {
         LauncherConfig cfg = loadConfig();
         return (cfg != null && cfg.serverHost() != null && !cfg.serverHost().isBlank())
-                ? cfg.serverHost().trim() : "localhost";
+                ? cfg.serverHost().trim() : "62.182.138.124";
     }
 
     /**

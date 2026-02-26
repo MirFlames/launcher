@@ -7,7 +7,7 @@ public class Consts {
     // API URL для проверки обновлений
     // TODO: Переход на хранение в конфиг-файле для разделения dev/prod окружений
     // Конфиг должен находиться в {minecraftFolder}/configs/launcher-config.json
-    public static String API_BASE_URL = "http://localhost:80";
+    public static String API_BASE_URL = "http://62.182.138.124:80";
     
     // Endpoints
     public static String API_VERSION = "/api/version";
