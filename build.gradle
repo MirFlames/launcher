@@ -42,19 +42,21 @@ task buildAll {
 task distZip(type: Zip) {
     group = 'distribution'
     description = 'Создает ZIP архив с launcher.exe, updater.exe и всеми необходимыми DLL файлами'
-    dependsOn ':launcher:nativeCompile', ':updater:nativeCompile', ':launcher:copyConfigsToNativeImage'
+    dependsOn ':launcher:nativeCompile', ':updater:nativeCompile', ':launcher:copyConfigsToNativeImage', ':launcher:copyFontConfigToNativeImage'
     
     archiveBaseName = 'launcher-dist'
     archiveVersion = project.version
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE  // launcher и updater имеют общие DLL (awt.dll и др.) — оставляем первый
     
-    // Копируем все файлы из launcher (exe, dll, configs)
+    // Копируем все файлы из launcher (exe, dll, configs, lib для fontconfig)
     from(project(':launcher').file("${project(':launcher').buildDir}/native/nativeCompile")) {
         // Включаем exe и все dll файлы
         include '*.exe'
         include '*.dll'
         // Включаем конфигурационные файлы
         include 'configs/**'
+        // lib/fontconfig.bfc для AWT font configuration (portable на другом ПК)
+        include 'lib/**'
         into 'launcher'
         // Исключаем временные файлы
         exclude '*.args'

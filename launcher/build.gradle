@@ -332,6 +332,31 @@ task copyConfigsToNativeImage(type: Copy) {
     }
 }
 
+// Копирование fontconfig для AWT (критично для portable native-image на другом ПК)
+task copyFontConfigToNativeImage(type: Copy) {
+    dependsOn nativeCompile
+    group = 'build'
+    description = 'Копирует fontconfig.bfc для AWT font configuration (Fontconfig head is null)'
+    
+    def javaHome = System.getenv('JAVA_HOME') ?: System.getProperty('java.home')
+    def sourceLib = javaHome ? file("${javaHome}/lib") : null
+    def targetLib = file("${buildDir}/native/nativeCompile/lib")
+    
+    onlyIf {
+        sourceLib != null && sourceLib.isDirectory() && file("${sourceLib}/fontconfig.bfc").exists()
+    }
+    
+    from(sourceLib) {
+        include 'fontconfig.bfc'
+        include 'fontconfig.properties.src'
+    }
+    into targetLib
+    
+    doLast {
+        println "✓ Fontconfig скопирован в: ${targetLib.absolutePath}"
+    }
+}
+
 // Копирование конфигов для JAR (после jar)
 task copyConfigsToJar(type: Copy) {
     dependsOn jar
@@ -349,9 +374,9 @@ task copyConfigsToJar(type: Copy) {
     }
 }
 
-// Автоматически копируем конфиги после сборки
+// Автоматически копируем конфиги и fontconfig после сборки
 tasks.named('nativeCompile').configure {
-    finalizedBy 'copyConfigsToNativeImage'
+    finalizedBy 'copyConfigsToNativeImage', 'copyFontConfigToNativeImage'
 }
 
 tasks.named('jar').configure {

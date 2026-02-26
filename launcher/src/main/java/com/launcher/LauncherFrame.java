@@ -399,16 +399,52 @@ public class LauncherFrame extends JFrame {
         return new File(System.getProperty("user.home", "."), "launcher.log");
     }
 
+    /**
+     * Определяет каталог лаунчера (где лежит exe). Используется для java.home при portable-запуске.
+     */
+    private static File resolveLauncherDir() {
+        try {
+            Optional<String> cmd = ProcessHandle.current().info().command();
+            if (cmd.isPresent()) {
+                File exe = new File(cmd.get());
+                File dir = exe.getParentFile();
+                if (dir != null && dir.isDirectory()) {
+                    return dir;
+                }
+            }
+        } catch (Throwable ignored) {
+            // ProcessHandle недоступен (редкие JVM / окружения)
+        }
+        File ud = new File(System.getProperty("user.dir", "."));
+        if (ud.isDirectory()) {
+            return ud;
+        }
+        return new File(System.getProperty("user.home", "."));
+    }
+
     public static void main(String[] args) {
         File logPath = resolveLogFile();
         System.setProperty("LOG_FILE", logPath.getAbsolutePath());
         
         // Устанавливаем java.home для AWT font configuration (критично для GraalVM native-image на Windows)
+        // При переносе дистрибутива на другой ПК java.home может быть null или указывать на путь сборки
         String javaHome = System.getProperty("java.home");
         if (javaHome == null || javaHome.isEmpty()) {
             String javaHomeEnv = System.getenv("JAVA_HOME");
             if (javaHomeEnv != null && !javaHomeEnv.isEmpty()) {
                 System.setProperty("java.home", javaHomeEnv);
+            }
+        }
+        javaHome = System.getProperty("java.home");
+        if (javaHome == null || javaHome.isEmpty()) {
+            File launcherDir = resolveLauncherDir();
+            System.setProperty("java.home", launcherDir.getAbsolutePath());
+        } else {
+            // Проверяем, что путь существует (на другой машине путь сборки может быть неверным)
+            File jh = new File(javaHome);
+            if (!jh.isDirectory() || !new File(jh, "lib").isDirectory()) {
+                File launcherDir = resolveLauncherDir();
+                System.setProperty("java.home", launcherDir.getAbsolutePath());
             }
         }
         
