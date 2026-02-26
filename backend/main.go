@@ -445,9 +445,12 @@ func handleLauncherVersion(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("Запрошена информация о версии лаунчера.")
 
+	launcherDownloadURL := fmt.Sprintf("http://%s:%s%s/launcher-%s.exe",
+		config.ServerHost, config.Port, config.LauncherDownloadPath, config.LauncherVersion)
+
 	launcherVersion := LauncherVersion{
 		Version:      config.LauncherVersion,
-		DownloadURL:  config.LauncherDownloadURL,
+		DownloadURL:  launcherDownloadURL,
 		Hash:         config.LauncherHash,
 		Size:         config.LauncherSize,
 		ReleaseNotes: "",

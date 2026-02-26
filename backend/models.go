@@ -31,8 +31,9 @@ type Config struct {
 	FilesPath        string       `json:"files_path"`
 	Port             string       `json:"port"`
 	// Конфигурация лаунчера
+	ServerHost       string `json:"server_host"`
 	LauncherVersion  string `json:"launcher_version"`
-	LauncherDownloadURL string `json:"launcher_download_url"`
+	LauncherDownloadPath string `json:"launcher_download_path"`
 	LauncherHash     string `json:"launcher_hash"`
 	LauncherSize     int64  `json:"launcher_size"`
 	LauncherMandatory bool  `json:"launcher_mandatory"`
