@@ -1,0 +1,44 @@
+name: Release Dist Zip
+
+on:
+  push:
+    tags:
+      - release
+
+jobs:
+  build-dist:
+    name: Build distribution
+    runs-on: windows-latest
+
+    permissions:
+      contents: write  # для создания GitHub Release
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup GraalVM JDK 25
+        uses: graalvm/setup-graalvm@v1
+        with:
+          distribution: graalvm
+          java-version: '25'
+          components: 'native-image'
+          cache: gradle
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build distZip
+        run: ./gradlew distZip --no-daemon
+
+      - name: Upload dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: launcher-dist
+          path: build/distributions/*.zip
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/distributions/*.zip
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
