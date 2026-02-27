@@ -29,6 +29,13 @@ jobs:
       - name: Build distZip
         run: ./gradlew distZip --no-daemon
 
+      - name: Get version from dist
+        id: version
+        run: |
+          $zip = Get-ChildItem build/distributions/*.zip | Select-Object -First 1
+          $version = $zip.BaseName -replace 'launcher-dist-',''
+          echo "VERSION=$version" >> $env:GITHUB_OUTPUT
+
       - name: Upload dist artifact
         uses: actions/upload-artifact@v4
         with:
@@ -38,6 +45,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          name: Launcher Release v${{ steps.version.outputs.VERSION }}
           files: build/distributions/*.zip
           generate_release_notes: true
         env:
