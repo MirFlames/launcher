@@ -1,8 +1,8 @@
 package com.launcher;
 
 public class Consts {
-    // Версия лаунчера (жестко закодирована, обновляется при сборке нового exe)
-    public static String LAUNCHER_VERSION = "1.0.3";
+    /** Версия лаунчера — задаётся в build.gradle (project.version). */
+    public static final String LAUNCHER_VERSION = Version.LAUNCHER_VERSION;
     
     // API URL для проверки обновлений
     // TODO: Переход на хранение в конфиг-файле для разделения dev/prod окружений

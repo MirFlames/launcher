@@ -6,12 +6,39 @@ plugins {
 
 // group и version наследуются от корневого build.gradle
 
+// Генерация Version.java из rootProject.version (единая точка задания версии — корневой build.gradle)
+def generatedVersionDir = file("${buildDir}/generated/sources/version")
+task generateVersion {
+    inputs.property('version', rootProject.version)
+    outputs.dir generatedVersionDir
+    doLast {
+        generatedVersionDir.mkdirs()
+        def packageDir = new File(generatedVersionDir, "com/launcher")
+        packageDir.mkdirs()
+        new File(packageDir, "Version.java").text = """package com.launcher;
+
+/** Версия лаунчера — генерируется из Gradle (build.gradle). */
+public final class Version {
+    public static final String LAUNCHER_VERSION = "${rootProject.version}";
+    private Version() {}
+}
+"""
+    }
+}
+
 sourceSets {
     main {
+        java {
+            srcDirs += generatedVersionDir
+        }
         resources {
             srcDirs = ['src/main/resources', 'resources']
         }
     }
+}
+
+tasks.named('compileJava') {
+    dependsOn generateVersion
 }
 
 dependencies {

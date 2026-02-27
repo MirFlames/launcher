@@ -203,7 +203,7 @@
   "files_path": "./files",
   "port": "80",
   "server_host": "62.182.138.124",
-  "launcher_version": "1.0.3",
+  "launcher_version": "0.0.2",
   "launcher_download_path": "/files/launcher",
   "launcher_hash": "",
   "launcher_size": 0,

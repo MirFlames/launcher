@@ -89,10 +89,10 @@ public class UpdateManager {
             
             if (!updaterExe.exists() || !updaterExe.isFile()) {
                 log.error("updater.exe не найден: {}", updaterExe.getAbsolutePath());
-                // Фатальная ошибка - показываем и закрываем лаунчер
+                // PLAIN_MESSAGE — без иконки, избегает NoSuchFieldError ImageRepresentation.numSrcLUT в native-image/JDK25
                 JOptionPane.showMessageDialog(null, 
                     "Отсутствует агент автообновления. Переустановите лаунчер.", 
-                    "Фатальная ошибка", JOptionPane.ERROR_MESSAGE);
+                    "Фатальная ошибка", JOptionPane.PLAIN_MESSAGE);
                 System.exit(1);
                 return false;
             }
@@ -117,7 +117,7 @@ public class UpdateManager {
             log.error("Ошибка при запуске updater: {}", e.getMessage(), e);
             JOptionPane.showMessageDialog(null, 
                 "Ошибка при запуске обновления: " + e.getMessage(), 
-                "Ошибка", JOptionPane.ERROR_MESSAGE);
+                "Ошибка", JOptionPane.PLAIN_MESSAGE);
             return false;
         }
     }

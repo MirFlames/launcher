@@ -206,11 +206,10 @@ public class LauncherFrame extends JFrame {
                 g.setColor(Color.WHITE);
                 g.setFont(g.getFont().deriveFont(Font.PLAIN, 12f));
                 String launcherVersion = "v" + Consts.LAUNCHER_VERSION;
-                String gameVersion = "v" + "1.0.0";
                 FontMetrics fm = g.getFontMetrics();
                 int x = 10; // Отступ слева
                 int y = getHeight() - 10; // Отступ снизу
-                g.drawString(launcherVersion + " - " + gameVersion, x, y);
+                g.drawString(launcherVersion, x, y);
             }
         };
         mainPanel.setOpaque(false);
@@ -453,6 +452,13 @@ public class LauncherFrame extends JFrame {
         Thread.setDefaultUncaughtExceptionHandler((t, e) ->
                 log.error("Uncaught in {}", t.getName(), e));
 
+        // Инициализация L&F до любого Swing UI — иначе native-image: "no ComponentUI class for JLabel/JButton"
+        try {
+            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+        } catch (Exception e) {
+            log.warn("Не удалось установить LookAndFeel: {}", e.getMessage());
+        }
+
         log.info("Starting launcher, java.version={}", System.getProperty("java.version"));
         log.info("user.dir={}", System.getProperty("user.dir"));
         log.info("java.home={}", System.getProperty("java.home"));
@@ -461,9 +467,10 @@ public class LauncherFrame extends JFrame {
         // Блокировка запуска нескольких экземпляров
         if (UpdateManager.isAnotherInstanceRunning()) {
             log.warn("Другой экземпляр лаунчера уже запущен");
+            // PLAIN_MESSAGE — без иконки, избегает NoSuchFieldError ImageRepresentation.numSrcLUT в native-image/JDK25
             JOptionPane.showMessageDialog(null, 
                 "Лаунчер уже запущен. Закройте предыдущий экземпляр.", 
-                "Внимание", JOptionPane.WARNING_MESSAGE);
+                "Внимание", JOptionPane.PLAIN_MESSAGE);
             System.exit(1);
             return;
         }
@@ -481,20 +488,18 @@ public class LauncherFrame extends JFrame {
                     System.exit(0);
                     return;
                 } else {
-                    // Если updater не запустился - показываем ошибку и закрываемся
                     JOptionPane.showMessageDialog(null, 
                         "Не удалось запустить обновление. Лаунчер будет закрыт.", 
-                        "Ошибка", JOptionPane.ERROR_MESSAGE);
+                        "Ошибка", JOptionPane.PLAIN_MESSAGE);
                     System.exit(1);
                     return;
                 }
             }
         } catch (Exception e) {
             log.error("Ошибка при проверке обновлений: {}", e.getMessage(), e);
-            // Если нет интернета или сервер недоступен - показать ошибку и закрыть
             JOptionPane.showMessageDialog(null, 
                 "Не удалось подключиться к серверу обновлений.\nПроверьте подключение к интернету.", 
-                "Ошибка", JOptionPane.ERROR_MESSAGE);
+                "Ошибка", JOptionPane.PLAIN_MESSAGE);
             System.exit(1);
             return;
         }
