@@ -2,6 +2,8 @@ package main
 
 import (
 	"crypto/rand"
+	"encoding/base64"
+	_ "embed"
 	"encoding/hex"
 	"encoding/json"
 	"flag"
@@ -15,6 +17,9 @@ import (
 	"sync"
 	"time"
 )
+
+//go:embed static/404.png
+var img404PNG []byte
 
 var config Config
 
@@ -159,6 +164,22 @@ func log404Middleware(next http.Handler) http.Handler {
 	})
 }
 
+// serve404Page отвечает страницей с картинкой при 404
+func serve404Page(w http.ResponseWriter, r *http.Request) {
+	log.Printf("404 Not Found: %s %s", r.Method, r.URL.Path)
+	b64 := base64.StdEncoding.EncodeToString(img404PNG)
+	html := `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>404 Not Found</title></head>
+<body style="margin:0;display:flex;justify-content:center;align-items:center;min-height:100vh;background:#1a1a2e;">
+<img src="data:image/png;base64,` + b64 + `" alt="404" style="max-width:100%;height:auto;">
+</body>
+</html>`
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusNotFound)
+	w.Write([]byte(html))
+}
+
 // corsHandler добавляет CORS-заголовки для работы Swagger UI и других браузерных клиентов
 type corsHandler struct{}
 
@@ -229,6 +250,7 @@ func main() {
 	mux.HandleFunc("/api/auth/verify", cors.wrap(handleAuthVerify))
 	mux.HandleFunc("/api/auth/invalidate", cors.wrap(handleAuthInvalidate))
 	mux.HandleFunc("/files/", cors.wrap(handleFileDownload))
+	mux.HandleFunc("/", cors.wrap(serve404Page))
 
 	port := config.Port
 	if port == "" {
@@ -399,7 +421,7 @@ func handleFileDownload(w http.ResponseWriter, r *http.Request) {
 	fileInfo, err := os.Stat(fullPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			http.Error(w, "Файл не найден", http.StatusNotFound)
+			serve404Page(w, r)
 			return
 		}
 		log.Printf("Ошибка доступа к файлу: %v", err)
