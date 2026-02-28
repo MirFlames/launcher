@@ -6,6 +6,8 @@ type ServerInfo struct {
 	ModsHash         string       `json:"mods_hash"`
 	ClientFiles      []ClientFile `json:"client_files"`
 	Mods             []ModFile    `json:"mods"`
+	ServerHost       string       `json:"server_host,omitempty"`
+	ServerPort       string       `json:"server_port,omitempty"`
 }
 
 // ClientFile представляет файл клиента
@@ -30,16 +32,17 @@ type Config struct {
 	Mods             []ModFile    `json:"mods"`
 	FilesPath        string       `json:"files_path"`
 	Port             string       `json:"port"`
-	// Конфигурация лаунчера
-	ServerHost       string `json:"server_host"`
-	LauncherVersion  string `json:"launcher_version"`
+	// Конфигурация лаунчера и Minecraft-сервера
+	ServerHost           string `json:"server_host"`
+	ServerPort           string `json:"server_port"`
+	LauncherVersion      string `json:"launcher_version"`
 	LauncherDownloadPath string `json:"launcher_download_path"`
-	LauncherHash     string `json:"launcher_hash"`
-	LauncherSize     int64  `json:"launcher_size"`
-	LauncherMandatory bool  `json:"launcher_mandatory"`
+	LauncherHash         string `json:"launcher_hash"`
+	LauncherSize         int64  `json:"launcher_size"`
+	LauncherMandatory    bool   `json:"launcher_mandatory"`
 	// Telegram бот для аутентификации
-	TelegramBotUsername    string `json:"telegram_bot_username"`
-	TelegramBotToken       string `json:"telegram_bot_token"`
+	TelegramBotUsername     string `json:"telegram_bot_username"`
+	TelegramBotToken        string `json:"telegram_bot_token"`
 	TelegramRequiredChannel string `json:"telegram_required_channel"` // Канал для обязательной подписки (например @mc_fam)
 	// Конфигурация JDK
 	JDK JDKInfo `json:"jdk"`
@@ -58,22 +61,22 @@ type LauncherVersion struct {
 // JDKInfo представляет информацию о требуемом JDK
 type JDKInfo struct {
 	Version        string `json:"version"`         // Формат: jdk-21.0.2
-	RelativePath   string `json:"relative_path"`  // Относительный путь от папки Minecraft
+	RelativePath   string `json:"relative_path"`   // Относительный путь от папки Minecraft
 	JavaExecutable string `json:"java_executable"` // Путь к java.exe относительно JDK
 	Mandatory      bool   `json:"mandatory"`
 }
 
 // AuthInitResponse — ответ на POST /api/auth/init
 type AuthInitResponse struct {
-	Code    string `json:"code"`
-	BotURL  string `json:"bot_url"`
+	Code   string `json:"code"`
+	BotURL string `json:"bot_url"`
 }
 
 // AuthCheckResponse — ответ на GET /api/auth/check?code=XXX
 type AuthCheckResponse struct {
-	Status       string `json:"status"` // "pending" или "authenticated"
-	Nickname     string `json:"nickname,omitempty"`
-	SessionUUID  string `json:"session_uuid,omitempty"`
+	Status      string `json:"status"` // "pending" или "authenticated"
+	Nickname    string `json:"nickname,omitempty"`
+	SessionUUID string `json:"session_uuid,omitempty"`
 }
 
 // AuthCompleteRequest — тело запроса POST /api/auth/complete

@@ -1,0 +1,28 @@
+html {
+    /* Прозрачный фон — через окно будет видна прозрачность (20%) */
+    background-color: rgba(7, 26, 54, 0.473);
+    text-align: center;
+    color: white;
+}
+
+body {
+    margin: 0;
+    background-color: transparent;
+    color: white;
+    font-family: "Nunito", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
+    "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue",
+    sans-serif;
+}
+
+@font-face {
+    font-family: "Nunito";
+    font-style: normal;
+    font-weight: 400;
+    src: local(""),
+    url("assets/fonts/nunito-v16-latin-regular.woff2") format("woff2");
+}
+
+#app {
+    height: 100vh;
+    text-align: center;
+}

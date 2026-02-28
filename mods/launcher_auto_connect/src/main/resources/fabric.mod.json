@@ -11,7 +11,7 @@
   "entrypoints": {
     "client": ["com.launcher.autoconnect.LauncherAutoConnectMod"]
   },
-  "depends": {
+  "mixins":["launcher_auto_connect.mixins.json"],"depends": {
     "fabricloader": ">=0.18.0",
     "minecraft": "~1.21.11",
     "java": ">=21",

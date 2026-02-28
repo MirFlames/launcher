@@ -8,8 +8,6 @@ pluginManagement {
 
 rootProject.name = 'launcher-monorepo'
 
-include 'launcher'
-include 'updater'
 include 'backend'
 include 'mods:launcher_auth'
 include 'mods:launcher_auto_connect'

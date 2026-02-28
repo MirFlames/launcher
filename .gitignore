@@ -24,3 +24,6 @@ Thumbs.db
 
 # Cursor (опционально)
 .cursor/
+
+.env
+backend/config.json

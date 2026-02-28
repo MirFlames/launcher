@@ -2,8 +2,8 @@ package main
 
 import (
 	"crypto/rand"
-	"encoding/base64"
 	_ "embed"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"flag"
@@ -16,6 +16,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/joho/godotenv"
 )
 
 //go:embed static/404.png
@@ -196,27 +198,31 @@ func (c corsHandler) wrap(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+func requireEnv(name string) string {
+	v := os.Getenv(name)
+	if v == "" {
+		log.Fatalf("Переменная окружения %s обязательна. Задайте её в .env", name)
+	}
+	return v
+}
+
 func main() {
+	for _, p := range []string{".env", "../.env"} {
+		if err := godotenv.Load(p); err == nil {
+			break
+		}
+	}
+
 	rescan := flag.Bool("rescan", false, "Пересчитать config.json из files/mods и files/versions")
+	updateHashes := flag.Bool("update-hashes", false, "Пересчитать хэши модов и client_files в config.json")
 	flag.Parse()
 
 	// Проверить существование config.json, если нет - сгенерировать
 	if _, err := os.Stat("config.json"); os.IsNotExist(err) {
 		log.Println("config.json не найден, генерирую автоматически...")
-
-		baseURL := os.Getenv("BASE_URL")
-		if baseURL == "" {
-			baseURL = "http://62.182.138.124"
-		}
-		port := os.Getenv("PORT")
-		if port == "" {
-			port = "80"
-		}
-		filesPath := os.Getenv("FILES_PATH")
-		if filesPath == "" {
-			filesPath = "./files"
-		}
-
+		baseURL := requireEnv("BASE_URL")
+		port := requireEnv("PORT")
+		filesPath := requireEnv("FILES_PATH")
 		if err := generateConfig(filesPath, port, baseURL); err != nil {
 			log.Fatalf("Ошибка генерации конфигурации: %v", err)
 		}
@@ -225,6 +231,25 @@ func main() {
 	// Загрузить конфигурацию
 	if err := loadConfig("config.json"); err != nil {
 		log.Fatalf("Ошибка загрузки конфигурации: %v", err)
+	}
+
+	// Обязательные переменные из env (переопределяют config)
+	_ = requireEnv("BASE_URL") // используется в hashutil
+	config.Port = requireEnv("PORT")
+	config.FilesPath = requireEnv("FILES_PATH")
+	config.ServerHost = requireEnv("SERVER_HOST")
+	config.ServerPort = requireEnv("SERVER_PORT")
+	config.TelegramBotToken = requireEnv("TELEGRAM_BOT_TOKEN")
+	config.TelegramBotUsername = requireEnv("TELEGRAM_BOT_USERNAME")
+	config.TelegramRequiredChannel = requireEnv("TELEGRAM_REQUIRED_CHANNEL")
+
+	// Режим -update-hashes: пересчитать хэши модов и client_files, сохранить и выйти
+	if *updateHashes {
+		if err := updateConfigHashes(false); err != nil {
+			log.Fatalf("Ошибка пересчёта хэшей: %v", err)
+		}
+		log.Println("Хэши обновлены в config.json")
+		return
 	}
 
 	// Режим -rescan: пересчитать mods и client_files из папок, сохранить и выйти
@@ -244,6 +269,7 @@ func main() {
 	mux.HandleFunc("/api/version", cors.wrap(handleVersion))
 	mux.HandleFunc("/api/launcher/version", cors.wrap(handleLauncherVersion))
 	mux.HandleFunc("/api/jdk/info", cors.wrap(handleJDKInfo))
+	mux.HandleFunc("/api/modpack", cors.wrap(handleModpack))
 	mux.HandleFunc("/api/auth/init", cors.wrap(handleAuthInit))
 	mux.HandleFunc("/api/auth/check", cors.wrap(handleAuthCheck))
 	mux.HandleFunc("/api/auth/complete", cors.wrap(handleAuthComplete))
@@ -252,16 +278,12 @@ func main() {
 	mux.HandleFunc("/files/", cors.wrap(handleFileDownload))
 	mux.HandleFunc("/", cors.wrap(serve404Page))
 
-	port := config.Port
-	if port == "" {
-		port = "80"
-	}
-
 	go StartTelegramBot()
+	go startHashesWatcher()
 
-	log.Printf("Сервер запущен на порту %s", port)
+	log.Printf("Сервер запущен на порту %s", config.Port)
 	log.Printf("Файлы раздаются из: %s", config.FilesPath)
-	log.Fatal(http.ListenAndServe(":"+port, log404Middleware(mux)))
+	log.Fatal(http.ListenAndServe(":"+config.Port, log404Middleware(mux)))
 }
 
 // loadConfig загружает конфигурацию из JSON файла
@@ -292,13 +314,7 @@ func loadConfig(filename string) error {
 		}
 	}
 
-	// Установить значения по умолчанию
-	if config.FilesPath == "" {
-		config.FilesPath = "./files"
-	}
-	if config.Port == "" {
-		config.Port = "80"
-	}
+	// JDK и LauncherVersion — из config (не секреты)
 	if config.LauncherVersion == "" {
 		config.LauncherVersion = "1.0.0"
 	}
@@ -311,13 +327,7 @@ func loadConfig(filename string) error {
 	if config.JDK.JavaExecutable == "" {
 		config.JDK.JavaExecutable = "bin\\java.exe"
 	}
-	// Токен бота: переменная окружения имеет приоритет (безопасность)
-	if envToken := os.Getenv("TELEGRAM_BOT_TOKEN"); envToken != "" {
-		config.TelegramBotToken = envToken
-	}
-	if config.TelegramRequiredChannel == "" {
-		config.TelegramRequiredChannel = "@mc_fam"
-	}
+	// PORT, FILES_PATH, SERVER_HOST, TELEGRAM_* задаются из env в main()
 
 	return nil
 }
@@ -351,6 +361,36 @@ func validateFileName(name string) error {
 	return nil
 }
 
+// handleModpack обрабатывает запрос GET /api/modpack — возвращает modpack.json
+func handleModpack(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Метод не разрешен", http.StatusMethodNotAllowed)
+		return
+	}
+	modpackPath := filepath.Join(config.FilesPath, "configs", "modpack.json")
+	data, err := os.ReadFile(modpackPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			http.Error(w, "modpack.json не найден", http.StatusNotFound)
+			return
+		}
+		log.Printf("Ошибка чтения modpack.json: %v", err)
+		http.Error(w, "Внутренняя ошибка сервера", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Write(data)
+}
+
+// buildFullURL собирает полный URL из BASE_URL, PORT и относительного пути.
+// Если path уже полный URL (http:// или https://), возвращает как есть (обратная совместимость).
+func buildFullURL(baseURL, port, path string) string {
+	if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
+		return path
+	}
+	return strings.TrimSuffix(baseURL, "/") + ":" + port + path
+}
+
 // handleVersion обрабатывает запрос GET /api/version
 func handleVersion(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -360,11 +400,25 @@ func handleVersion(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("Запрошена информация о версии игры.")
 
+	baseURL := os.Getenv("BASE_URL")
+	port := config.Port
+
+	clientFiles := make([]ClientFile, len(config.ClientFiles))
+	for i, f := range config.ClientFiles {
+		clientFiles[i] = ClientFile{Name: f.Name, URL: buildFullURL(baseURL, port, f.URL), Hash: f.Hash}
+	}
+	mods := make([]ModFile, len(config.Mods))
+	for i, m := range config.Mods {
+		mods[i] = ModFile{Name: m.Name, URL: buildFullURL(baseURL, port, m.URL), Hash: m.Hash}
+	}
+
 	serverInfo := ServerInfo{
 		MinecraftVersion: config.MinecraftVersion,
 		ModsHash:         config.ModsHash,
-		ClientFiles:      config.ClientFiles,
-		Mods:             config.Mods,
+		ClientFiles:      clientFiles,
+		Mods:             mods,
+		ServerHost:       config.ServerHost,
+		ServerPort:       config.ServerPort,
 	}
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -520,7 +574,9 @@ func handleAuthInit(w http.ResponseWriter, r *http.Request) {
 
 	botUsername := config.TelegramBotUsername
 	if botUsername == "" {
-		botUsername = "YourLauncherBot"
+		log.Printf("[Auth] TELEGRAM_BOT_USERNAME не задан")
+		http.Error(w, "Бот не настроен: TELEGRAM_BOT_USERNAME обязателен", http.StatusInternalServerError)
+		return
 	}
 	botURL := fmt.Sprintf("https://t.me/%s?start=%s", strings.TrimPrefix(botUsername, "@"), code)
 

@@ -37,6 +37,13 @@ processResources {
     filesMatching("fabric.mod.json") {
         expand "version": project.version
     }
+    filesMatching("launcher_auth.properties") {
+        def authUrl = env.fetchOrNull("AUTH_API_URL")?.trim()
+        if (!authUrl) {
+            throw new GradleException("AUTH_API_URL обязателен. Задайте в .env или переменной окружения.")
+        }
+        expand "auth_api_url": authUrl
+    }
 }
 
 java {

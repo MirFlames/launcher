@@ -11,8 +11,7 @@ launcher/
 ├── backend/           # Go API-сервер (версии, JDK, файлы)
 ├── docs/              # Документация
 └── launcher/resources/configs/
-    ├── modpack.json              # Полный манифест версии (Mojang/Fabric)
-    └── minecraft-launch-config.json  # Упрощённый конфиг запуска
+    └── modpack.json              # Манифест версии (Mojang/Fabric)
 ```
 
 ---
@@ -23,65 +22,18 @@ launcher/
 1. Пользователь нажимает "Играть"
 2. JDKManager.ensureJDKInstalled() → проверка/установка Java
 3. MinecraftLauncher.startMinecraft():
-   - Если есть configs/modpack.json → launchFromModpack():
+   - Требуется configs/modpack.json → launchFromModpack():
      * ModpackConfigLoader.load() → modpack.json
      * Сборка classpath: client.jar + libraries (с учётом rules по ОС)
      * Извлечение natives в папку natives/
      * Разрешение JVM и game аргументов с плейсхолдерами
      * Запуск ProcessBuilder(java, jvmArgs, mainClass, gameArgs)
-   - Иначе → launchFromLegacyConfig():
-     * MinecraftConfigLoader.load() → minecraft-launch-config.json
-     * Сборка classpath из libraries + extraJars
-     * Подстановка путей (base = папка лаунчера)
-     * Запуск ProcessBuilder(java, jvmArgs, -cp, classpath, mainClass, gameArgs)
+   - При отсутствии modpack.json → ошибка
 ```
 
 ---
 
 ## Конфигурационные файлы
-
-### minecraft-launch-config.json
-
-**Используется:** лаунчером при каждом запуске.
-
-**Структура:**
-```json
-{
-  "environment": {
-    "javaExecutable": "/jre_default/jdk-21.0.2/bin/java.exe"
-  },
-  "classpath": {
-    "libraries": [
-      {
-        "groupId": "net.fabricmc",
-        "artifactId": "fabric-loader",
-        "version": "0.15.11",
-        "classifier": null,
-        "path": "C:/Users/User/AppData/Roaming/.minecraft/libraries/..."
-      }
-    ],
-    "extraJars": ["modpack.jar", "fabric-loader.jar"]
-  },
-  "launchArguments": {
-    "mainClass": "net.fabricmc.loader.impl.launch.knot.KnotClient",
-    "jvmArguments": ["-Xmx4G", "-Xms1G", "-Djava.library.path=...", ...],
-    "gameArguments": {
-      "username": "OfflinePlayer",
-      "version": "1.21.1",
-      "gameDir": "...",
-      "assetsDir": "...",
-      "assetIndex": "29",
-      "uuid": "...",
-      "userType": "legacy",
-      "versionType": "fabric"
-    }
-  }
-}
-```
-
-**Подстановки в MinecraftLauncher:**
-- `C:/Users/User/AppData/Roaming/.minecraft` → `{minecraftFolder}`
-- `-Djava.library.path=...` → `{minecraftFolder}/natives`
 
 ### modpack.json
 
@@ -113,8 +65,8 @@ launcher/
 | Класс | Назначение |
 |-------|------------|
 | `ModpackConfigLoader` | Загрузка modpack.json, разрешение rules и аргументов |
-| `MinecraftConfigLoader` | Загрузка minecraft-launch-config.json (fallback) |
-| `MinecraftLauncher` | Сборка команды и запуск процесса (modpack или legacy) |
+| `MinecraftConfigLoader` | Определение папки Minecraft (getMinecraftFolder) |
+| `MinecraftLauncher` | Сборка команды и запуск процесса по modpack.json |
 | `NativesExtractor` | Извлечение natives из JAR в папку natives/ |
 | `LibraryDownloader` | Скачивание отсутствующих библиотек и client.jar по URL из modpack |
 | `JDKManager` | Проверка/установка JDK |
