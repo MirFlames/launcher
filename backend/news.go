@@ -16,8 +16,8 @@ import (
 type NewsResponse struct {
 	Authenticated bool        `json:"authenticated"`
 	Message       string      `json:"message,omitempty"` // при !authenticated — призыв войти + про пароли
-	News          *NewsItem   `json:"news,omitempty"`   // при authenticated — последняя новость
-	Update        interface{} `json:"update,omitempty"` // зарезервировано: уведомление о новой версии лаунчера
+	News          *NewsItem   `json:"news,omitempty"`    // при authenticated — последняя новость
+	Update        interface{} `json:"update,omitempty"`  // зарезервировано: уведомление о новой версии лаунчера
 }
 
 // NewsItem — одна новость из канала
