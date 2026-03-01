@@ -212,21 +212,17 @@ func LaunchMinecraft(onProgress LaunchProgress, onProcessStarted LaunchProcessSt
 	if onProgress != nil {
 		onProgress("Загрузка модов", "Скачивание модов...", 0)
 	}
-	if err := EnsureMods(gameDir, version, onProgress); err != nil {
+	modsDownloaded, err := EnsureMods(gameDir, version, onProgress)
+	if err != nil {
 		return fmt.Errorf("моды: %w", err)
 	}
 
-	// Синхронизация settings-файлов (options.txt) при обновлении сборки
-	if version != nil {
-		lastModsHash := loadLastModsHash(gameDir)
-		buildChanged := lastModsHash == "" || version.ModsHash != lastModsHash
-		if buildChanged {
-			if cfg, _ := LoadConfig(); cfg != nil && cfg.SyncClientSettings {
-				if err := EnsureClientFiles(gameDir, version, onProgress); err != nil {
-					return fmt.Errorf("client_files: %w", err)
-				}
+	// Синхронизация settings-файлов (options.txt) только при докачке модов с сервера
+	if version != nil && modsDownloaded {
+		if cfg, _ := LoadConfig(); cfg != nil && cfg.SyncClientSettings {
+			if err := EnsureClientFiles(gameDir, version, onProgress); err != nil {
+				return fmt.Errorf("client_files: %w", err)
 			}
-			_ = saveLastModsHash(gameDir, version.ModsHash)
 		}
 	}
 

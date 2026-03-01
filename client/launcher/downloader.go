@@ -312,14 +312,15 @@ func verifySHA256(path, expectedHex string) bool {
 }
 
 // EnsureMods скачивает моды из /api/version и удаляет моды, которых нет на сервере.
-func EnsureMods(gameDir string, version *ServerVersion, onProgress func(stage, status string, progress float64)) error {
+// Возвращает (downloaded, error): downloaded=true, если был скачан хотя бы один мод.
+func EnsureMods(gameDir string, version *ServerVersion, onProgress func(stage, status string, progress float64)) (bool, error) {
 	if version == nil {
-		return nil
+		return false, nil
 	}
 
 	modsDir := filepath.Join(gameDir, "mods")
 	if err := os.MkdirAll(modsDir, 0755); err != nil {
-		return err
+		return false, err
 	}
 
 	// Моды, которых нет на сервере — удаляем у клиента
@@ -341,7 +342,7 @@ func EnsureMods(gameDir string, version *ServerVersion, onProgress func(stage, s
 	}
 
 	if len(version.Mods) == 0 {
-		return nil
+		return false, nil
 	}
 
 	var toDownload []ServerFile
@@ -372,39 +373,21 @@ func EnsureMods(gameDir string, version *ServerVersion, onProgress func(stage, s
 				onProgress("Загрузка модов", status, (float64(i)+p)/float64(total))
 			}
 		}); err != nil {
-			return fmt.Errorf("мод %s: %w", m.Name, err)
+			return false, fmt.Errorf("мод %s: %w", m.Name, err)
 		}
 		if m.Hash != "" && !verifySHA256(dest, m.Hash) {
 			os.Remove(dest)
-			return fmt.Errorf("хеш мода не совпадает: %s", m.Name)
+			return false, fmt.Errorf("хеш мода не совпадает: %s", m.Name)
 		}
 	}
 	if onProgress != nil && total > 0 {
 		onProgress("Загрузка модов", "Моды загружены", 1)
 	}
-	return nil
-}
-
-const lastModsHashFilename = ".launcher_last_mods_hash"
-
-func getLastModsHashPath(gameDir string) string {
-	return filepath.Join(gameDir, lastModsHashFilename)
-}
-
-func loadLastModsHash(gameDir string) string {
-	data, err := os.ReadFile(getLastModsHashPath(gameDir))
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(data))
-}
-
-func saveLastModsHash(gameDir, hash string) error {
-	return os.WriteFile(getLastModsHashPath(gameDir), []byte(hash), 0644)
+	return len(toDownload) > 0, nil
 }
 
 // EnsureClientFiles скачивает settings-файлы (options.txt и т.п.) из version.ClientFiles
-// в gameDir. Вызывается только при SyncClientSettings=true и изменении сборки (mods_hash).
+// в gameDir. Вызывается только при SyncClientSettings=true и докачке модов.
 // Пропускает client_files из versions/ (JAR) — они обрабатываются EnsureClientJar.
 func EnsureClientFiles(gameDir string, version *ServerVersion, onProgress func(stage, status string, progress float64)) error {
 	if version == nil || len(version.ClientFiles) == 0 {
