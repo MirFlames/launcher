@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -58,6 +59,18 @@ func LoadConfig() (*Config, error) {
 	if _, ok := raw["sync_client_settings"]; !ok {
 		cfg.SyncClientSettings = true
 	}
+	// Применяем дефолты из .env (при сборке), если в конфиге пусто
+	if cfg.ApiBaseUrl == "" && buildDefaultApiBaseUrl != "" {
+		cfg.ApiBaseUrl = buildDefaultApiBaseUrl
+	}
+	if cfg.ServerHost == "" && buildDefaultServerHost != "" {
+		cfg.ServerHost = buildDefaultServerHost
+	}
+	if cfg.ServerPort <= 0 && buildDefaultServerPort != "" {
+		if p, err := parseInt(buildDefaultServerPort); err == nil && p > 0 {
+			cfg.ServerPort = p
+		}
+	}
 	return &cfg, nil
 }
 
@@ -78,13 +91,25 @@ func SaveConfig(cfg *Config) error {
 }
 
 func defaultConfig() *Config {
+	port := 0
+	if buildDefaultServerPort != "" {
+		if p, err := parseInt(buildDefaultServerPort); err == nil && p > 0 {
+			port = p
+		}
+	}
 	return &Config{
 		NewsFeedUrl:        "mc_fam",
-		ApiBaseUrl:         "",
-		ServerHost:         "",
-		ServerPort:         0,
+		ApiBaseUrl:         buildDefaultApiBaseUrl,
+		ServerHost:         buildDefaultServerHost,
+		ServerPort:         port,
 		SyncClientSettings: true,
 	}
+}
+
+func parseInt(s string) (int, error) {
+	var n int
+	_, err := fmt.Sscanf(s, "%d", &n)
+	return n, err
 }
 
 // resolveNewsFeedUrl превращает имя канала или t.me/xxx в RSS URL для ch2rss

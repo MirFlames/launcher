@@ -23,7 +23,9 @@ go run ./backend
 
 ### Launcher (Wails)
 
-Скрипт `build.ps1` читает `.env` из корня или `client/launcher/.sign.env` (для подписи: `CODESIGN_PFX`, `CODESIGN_PASSWORD`).
+Скрипт `build.ps1` читает `.env` из корня или `client/launcher/.sign.env`:
+- **Подпись:** `CODESIGN_PFX`, `CODESIGN_PASSWORD`
+- **Дефолты при сборке** (встраиваются в exe): `API_BASE_URL`, `SERVER_HOST`, `SERVER_PORT` — используются когда у клиента нет launcher-config.json
 
 ```powershell
 cd client/launcher

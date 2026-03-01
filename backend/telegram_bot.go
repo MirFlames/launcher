@@ -128,10 +128,21 @@ func StartTelegramBot() {
 
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
+	u.AllowedUpdates = []string{"message", "edited_message", "channel_post", "edited_channel_post", "callback_query"}
 
 	updates := bot.GetUpdatesChan(u)
 
 	for update := range updates {
+		// Кэширование постов из канала для /api/news (Telegram API)
+		if post := update.ChannelPost; post != nil {
+			CacheChannelPost(post)
+			continue
+		}
+		if post := update.EditedChannelPost; post != nil {
+			CacheChannelPost(post)
+			continue
+		}
+
 		// Обработка callback (нажатие кнопки «Проверить подписку»)
 		if update.CallbackQuery != nil {
 			cb := update.CallbackQuery

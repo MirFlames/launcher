@@ -275,6 +275,7 @@ func main() {
 	mux.HandleFunc("/api/auth/complete", cors.wrap(handleAuthComplete))
 	mux.HandleFunc("/api/auth/verify", cors.wrap(handleAuthVerify))
 	mux.HandleFunc("/api/auth/invalidate", cors.wrap(handleAuthInvalidate))
+	mux.HandleFunc("/api/news", cors.wrap(handleNews))
 	mux.HandleFunc("/files/", cors.wrap(handleFileDownload))
 	mux.HandleFunc("/", cors.wrap(serve404Page))
 

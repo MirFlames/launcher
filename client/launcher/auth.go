@@ -109,8 +109,11 @@ func authDeleteSession() error {
 
 func getApiBaseUrl() string {
 	cfg, err := LoadConfig()
-	if err != nil || cfg == nil || cfg.ApiBaseUrl == "" {
-		return ""
+	if err != nil || cfg == nil {
+		return strings.TrimSuffix(buildDefaultApiBaseUrl, "/")
+	}
+	if cfg.ApiBaseUrl == "" {
+		return strings.TrimSuffix(buildDefaultApiBaseUrl, "/")
 	}
 	return strings.TrimSuffix(cfg.ApiBaseUrl, "/")
 }

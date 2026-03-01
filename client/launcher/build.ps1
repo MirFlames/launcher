@@ -70,7 +70,13 @@ switch ($Target) {
     }
     "build" {
         Write-Host "Building production binary..." -ForegroundColor Cyan
-        wails build -ldflags "-s -w -H windowsgui" -trimpath
+        # Дефолты из .env при сборке (API_BASE_URL, SERVER_HOST, SERVER_PORT)
+        $apiUrl = if ($env:API_BASE_URL) { $env:API_BASE_URL } else { $env:BASE_URL }
+        $ldflags = "-s -w -H windowsgui"
+        if ($apiUrl) { $ldflags += " -X main.buildDefaultApiBaseUrl=$apiUrl" }
+        if ($env:SERVER_HOST) { $ldflags += " -X main.buildDefaultServerHost=$($env:SERVER_HOST)" }
+        if ($env:SERVER_PORT) { $ldflags += " -X main.buildDefaultServerPort=$($env:SERVER_PORT)" }
+        wails build -ldflags $ldflags -trimpath
         Write-Host "Build complete. Output in build/bin/" -ForegroundColor Green
         Sign-Executable
     }

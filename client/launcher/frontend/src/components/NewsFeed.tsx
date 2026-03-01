@@ -1,16 +1,10 @@
 import {useState, useEffect} from 'react';
 import {GetNewsFeed} from '../../wailsjs/go/main/App';
+import type {main} from '../../wailsjs/go/models';
 import './NewsFeed.css';
 
-interface NewsItem {
-    title: string;
-    link: string;
-    description: string;
-    published: string;
-}
-
 export function NewsFeed() {
-    const [items, setItems] = useState<NewsItem[]>([]);
+    const [response, setResponse] = useState<main.NewsFeedResponse | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -19,11 +13,11 @@ export function NewsFeed() {
         setError(null);
         GetNewsFeed()
             .then((data) => {
-                setItems(data || []);
+                setResponse(data || null);
             })
             .catch((e) => {
                 setError(e?.message || 'Не удалось загрузить новости');
-                setItems([]);
+                setResponse(null);
             })
             .finally(() => setLoading(false));
     }
@@ -34,62 +28,68 @@ export function NewsFeed() {
         return () => clearInterval(id);
     }, []);
 
-    if (loading && items.length === 0) {
+    if (loading && !response) {
         return (
             <div className="news-feed">
-                <h3 className="news-feed-title">Новости</h3>
+                <h3 className="news-feed-title">Новость дня</h3>
                 <p className="news-feed-placeholder">Загрузка…</p>
             </div>
         );
     }
 
-    if (error && items.length === 0) {
+    if (error) {
         return (
             <div className="news-feed">
-                <h3 className="news-feed-title">Новости</h3>
+                <h3 className="news-feed-title">Новость дня</h3>
                 <p className="news-feed-error">{error}</p>
-                <p className="news-feed-hint">Укажите Telegram-канал в настройках</p>
             </div>
         );
     }
 
-    if (items.length === 0) {
+    // Не авторизован — показываем призыв войти
+    if (response && !response.authenticated) {
         return (
             <div className="news-feed">
-                <h3 className="news-feed-title">Новости</h3>
-                <p className="news-feed-placeholder">Нет новостей. Добавьте канал в настройках</p>
+                <h3 className="news-feed-title">Новость дня</h3>
+                <p className="news-feed-placeholder">{response.message || 'Войдите для просмотра новостей'}</p>
             </div>
         );
     }
+
+    // Авторизован, но нет новости
+    if (response && response.authenticated && !response.news) {
+        return (
+            <div className="news-feed">
+                <h3 className="news-feed-title">Новость дня</h3>
+                <p className="news-feed-placeholder">{response.message || 'В канале пока нет новостей'}</p>
+            </div>
+        );
+    }
+
+    // Авторизован, есть новость
+    const news = response!.news!;
+    const text = news.text || '';
+    const truncated = text.length > 200 ? text.slice(0, 200) + '…' : text;
 
     return (
         <div className="news-feed">
-            <h3 className="news-feed-title">Новости</h3>
-            <ul className="news-feed-list">
-                {items.map((item, i) => (
-                    <li key={i} className="news-feed-item">
-                        <a
-                            href={item.link}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="news-feed-link"
-                        >
-                            {item.title}
-                        </a>
-                        {item.published && (
-                            <span className="news-feed-date">{item.published}</span>
-                        )}
-                        {item.description && (() => {
-                            const text = item.description.replace(/<[^>]+>/g, '');
-                            return (
-                                <p className="news-feed-desc">
-                                    {text.slice(0, 120)}{text.length > 120 ? '…' : ''}
-                                </p>
-                            );
-                        })()}
-                    </li>
-                ))}
-            </ul>
+            <h3 className="news-feed-title">Новость дня</h3>
+            <div className="news-feed-item">
+                {news.published && (
+                    <span className="news-feed-date">{news.published}</span>
+                )}
+                <p className="news-feed-desc">{truncated}</p>
+                {news.link && (
+                    <a
+                        href={news.link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="news-feed-link"
+                    >
+                        Читать в канале →
+                    </a>
+                )}
+            </div>
         </div>
     );
 }

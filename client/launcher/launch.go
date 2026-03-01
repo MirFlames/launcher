@@ -341,9 +341,13 @@ func LaunchMinecraft(onProgress LaunchProgress, onProcessStarted LaunchProcessSt
 		serverHost = version.ServerHost
 		serverPort = version.ServerPort
 	}
+	if serverHost == "" && buildDefaultServerHost != "" {
+		serverHost = buildDefaultServerHost
+		serverPort = buildDefaultServerPort
+	}
 	if serverHost != "" {
 		if serverPort == "" {
-			return fmt.Errorf("server_port не задан. Укажите в настройках или задайте SERVER_PORT в .env на бэкенде")
+			return fmt.Errorf("server_port не задан. Укажите в настройках или задайте SERVER_PORT в .env при сборке")
 		}
 		gameArgs = append(gameArgs, "--server", serverHost, "--port", serverPort)
 	}

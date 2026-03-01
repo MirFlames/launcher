@@ -35,10 +35,9 @@ export namespace main {
 	    }
 	}
 	export class NewsItem {
-	    title: string;
-	    link: string;
-	    description: string;
-	    published: string;
+	    text: string;
+	    link?: string;
+	    published?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new NewsItem(source);
@@ -46,11 +45,46 @@ export namespace main {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.title = source["title"];
+	        this.text = source["text"];
 	        this.link = source["link"];
-	        this.description = source["description"];
 	        this.published = source["published"];
 	    }
+	}
+	export class NewsFeedResponse {
+	    authenticated: boolean;
+	    message?: string;
+	    news?: NewsItem;
+	    update?: any;
+	
+	    static createFrom(source: any = {}) {
+	        return new NewsFeedResponse(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.authenticated = source["authenticated"];
+	        this.message = source["message"];
+	        this.news = this.convertValues(source["news"], NewsItem);
+	        this.update = source["update"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 
 }

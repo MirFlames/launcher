@@ -2,12 +2,13 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os/exec"
 	"time"
 
-	"github.com/mmcdole/gofeed"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -32,12 +33,19 @@ func (a *App) Greet(name string) string {
 	return fmt.Sprintf("Hello %s, It's show time!", name)
 }
 
-// NewsItem — элемент ленты новостей
+// NewsFeedResponse — ответ API новостей (расширяемая структура для уведомлений о версии и т.п.)
+type NewsFeedResponse struct {
+	Authenticated bool      `json:"authenticated"`
+	Message       string    `json:"message,omitempty"`
+	News          *NewsItem `json:"news,omitempty"`
+	Update        any       `json:"update,omitempty"` // зарезервировано: уведомление о новой версии
+}
+
+// NewsItem — одна новость
 type NewsItem struct {
-	Title       string `json:"title"`
-	Link        string `json:"link"`
-	Description string `json:"description"`
-	Published   string `json:"published"`
+	Text      string `json:"text"`
+	Link      string `json:"link,omitempty"`
+	Published string `json:"published,omitempty"`
 }
 
 // GetConfig возвращает текущие настройки
@@ -141,38 +149,43 @@ func (a *App) PlayMinecraft() error {
 	return LaunchMinecraft(onProgress, onProcessStarted)
 }
 
-// GetNewsFeed возвращает последние новости из настроенного RSS
-func (a *App) GetNewsFeed() ([]NewsItem, error) {
-	cfg, err := LoadConfig()
-	if err != nil || cfg.NewsFeedUrl == "" {
-		return nil, nil
+// GetNewsFeed запрашивает новости у бэкенда (с проверкой сессии).
+// Передаёт nickname, launcher_version.
+func (a *App) GetNewsFeed() (*NewsFeedResponse, error) {
+	base := getApiBaseUrl()
+	session, _ := authLoadSession()
+
+	params := url.Values{}
+	params.Set("launcher_version", LauncherVersion)
+	if session != nil && session.isValid() {
+		params.Set("nickname", session.Nickname)
+		params.Set("session_uuid", session.SessionUUID)
 	}
-	url := resolveNewsFeedUrl(cfg.NewsFeedUrl)
-	if url == "" {
-		return nil, nil
-	}
+
+	reqURL := base + "/api/news?" + params.Encode()
 	client := &http.Client{Timeout: 15 * time.Second}
-	fp := gofeed.NewParser()
-	fp.Client = client
-	feed, err := fp.ParseURL(url)
+	resp, err := client.Get(reqURL)
 	if err != nil {
-		return nil, err
+		return &NewsFeedResponse{
+			Authenticated: false,
+			Message:       "Не удалось подключиться к серверу. Проверьте URL в настройках.",
+		}, nil
 	}
-	items := make([]NewsItem, 0, 1)
-	for i, item := range feed.Items {
-		if i >= 1 {
-			break
-		}
-		pub := ""
-		if item.PublishedParsed != nil {
-			pub = item.PublishedParsed.Format("02.01.2006 15:04")
-		}
-		items = append(items, NewsItem{
-			Title:       item.Title,
-			Link:        item.Link,
-			Description: item.Description,
-			Published:   pub,
-		})
+	defer resp.Body.Close()
+
+	var result NewsFeedResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return &NewsFeedResponse{
+			Authenticated: false,
+			Message:       "Ошибка ответа сервера",
+		}, nil
 	}
-	return items, nil
+
+	if resp.StatusCode != http.StatusOK {
+		if result.Message == "" {
+			result.Message = "Сервер вернул ошибку"
+		}
+		result.Authenticated = false
+	}
+	return &result, nil
 }

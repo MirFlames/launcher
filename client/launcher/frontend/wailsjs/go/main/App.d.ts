@@ -14,7 +14,7 @@ export function AuthStartLogin():Promise<main.AuthSession>;
 
 export function GetConfig():Promise<main.Config>;
 
-export function GetNewsFeed():Promise<Array<main.NewsItem>>;
+export function GetNewsFeed():Promise<main.NewsFeedResponse>;
 
 export function Greet(arg1:string):Promise<string>;
 
