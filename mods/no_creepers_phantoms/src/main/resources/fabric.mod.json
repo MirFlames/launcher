@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "no_creepers_phantoms",
+  "version": "${version}",
+  "name": "No Creepers Phantoms",
+  "description": "Серверный мод: отключает спавн криперов и фантомов",
+  "authors": ["Launcher"],
+  "contact": {},
+  "license": "MIT",
+  "environment": "server",
+  "entrypoints": {
+    "server": ["com.launcher.nocreepersphantoms.NoCreepersPhantomsMod"]
+  },
+  "mixins": ["no_creepers_phantoms.mixins.json"],
+  "depends": {
+    "fabricloader": ">=0.18.0",
+    "minecraft": "~1.21.11",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
