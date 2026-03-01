@@ -24,5 +24,8 @@ go.work
 # Auth sessions (survive restart, contain nicknames)
 valid-sessions.json
 
+# News cache (survive restart)
+news-cache.json
+
 # Files directory
 files/

@@ -139,7 +139,6 @@ func StartTelegramBot() {
 			continue
 		}
 		if post := update.EditedChannelPost; post != nil {
-			CacheChannelPost(post)
 			continue
 		}
 

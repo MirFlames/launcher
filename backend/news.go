@@ -5,12 +5,15 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
+
+const newsCacheFile = "news-cache.json"
 
 // NewsResponse — ответ GET /api/news (расширяемая структура для уведомлений о версии и т.п.)
 type NewsResponse struct {
@@ -33,6 +36,36 @@ var (
 		item *NewsItem
 	}{}
 )
+
+// LoadNewsCache загружает кэш новостей из файла (вызывается при старте бэкенда).
+func LoadNewsCache() {
+	data, err := os.ReadFile(newsCacheFile)
+	if err != nil {
+		return
+	}
+	var item NewsItem
+	if err := json.Unmarshal(data, &item); err != nil {
+		return
+	}
+	if item.Text == "" {
+		return
+	}
+	latestChannelPost.Lock()
+	latestChannelPost.item = &item
+	latestChannelPost.Unlock()
+	log.Printf("[News] Загружена кэшированная новость из %s", newsCacheFile)
+}
+
+func saveNewsCache(item *NewsItem) error {
+	if item == nil {
+		return nil
+	}
+	data, err := json.MarshalIndent(item, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(newsCacheFile, data, 0644)
+}
 
 // CacheChannelPost сохраняет последний пост из канала (вызывается из telegram_bot при получении channel_post)
 func CacheChannelPost(msg *tgbotapi.Message) {
@@ -65,9 +98,13 @@ func CacheChannelPost(msg *tgbotapi.Message) {
 
 	pub := time.Unix(int64(msg.Date), 0).Format("02.01.2006 15:04")
 
+	item := &NewsItem{Text: text, Link: link, Published: pub}
 	latestChannelPost.Lock()
-	latestChannelPost.item = &NewsItem{Text: text, Link: link, Published: pub}
+	latestChannelPost.item = item
 	latestChannelPost.Unlock()
+	if err := saveNewsCache(item); err != nil {
+		log.Printf("[News] Ошибка сохранения кэша: %v", err)
+	}
 	log.Printf("[News] Кэширована новость из канала @%s", msg.Chat.UserName)
 }
 

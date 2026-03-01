@@ -262,6 +262,7 @@ func main() {
 	}
 
 	loadValidSessions()
+	LoadNewsCache()
 
 	// Настроить маршруты (cors разрешает запросы из Swagger UI и других клиентов)
 	cors := corsHandler{}
