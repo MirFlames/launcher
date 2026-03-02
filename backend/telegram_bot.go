@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"regexp"
 	"strings"
@@ -36,11 +37,37 @@ var (
 const nicknamePendingTTL = 5 * time.Minute
 const subscriptionPendingTTL = 10 * time.Minute
 
+const serverStatusButtonText = "А сервер-то работает?"
+
 // Minecraft nickname: 3-16 символов, буквы, цифры, подчёркивание
 var nicknameRegex = regexp.MustCompile(`^[a-zA-Z0-9_]{3,16}$`)
 
 func isValidNickname(s string) bool {
 	return nicknameRegex.MatchString(strings.TrimSpace(s))
+}
+
+// serverStatusKeyboard — постоянная клавиатура с кнопкой проверки сервера (всегда видна внизу чата)
+func serverStatusKeyboard() tgbotapi.ReplyKeyboardMarkup {
+	k := tgbotapi.NewReplyKeyboard(
+		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton(serverStatusButtonText)),
+	)
+	k.ResizeKeyboard = true
+	return k
+}
+
+// getServerStatusMessage возвращает текст в зависимости от статуса Minecraft-сервера
+func getServerStatusMessage(status MinecraftStatusResult) string {
+	if !status.Online {
+		return "Неа. Кажись упал."
+	}
+	switch {
+	case status.Count == 0:
+		return "Да, сейчас работает! Но все игроки разбрелись: кто на работе, кто в дурке. Заходи, будь первым!"
+	case status.Count == 1:
+		return "Да, работает! И там кто-то сейчас играет! Подключайся!"
+	default:
+		return fmt.Sprintf("Работает! Онлайн на сервере: %d чел. Будешь %d-м?", status.Count, status.Count+1)
+	}
 }
 
 // getRequiredChannel возвращает канал для проверки подписки (пустая строка = проверка отключена)
@@ -143,11 +170,22 @@ func StartTelegramBot() {
 			continue
 		}
 
-		// Обработка callback (нажатие кнопки «Проверить подписку»)
+		// Обработка callback (нажатие кнопок)
 		if update.CallbackQuery != nil {
 			cb := update.CallbackQuery
 			userID := cb.From.ID
 			chatID := cb.Message.Chat.ID
+
+			if cb.Data == "server_status" {
+				status := CheckMinecraftServerStatus()
+				m := tgbotapi.NewMessage(chatID, getServerStatusMessage(status))
+				m.ReplyMarkup = serverStatusKeyboard()
+				answerCallback(bot, cb.ID, "")
+				if _, err := bot.Send(m); err != nil {
+					log.Printf("[Telegram] Ошибка отправки сообщения: %v", err)
+				}
+				continue
+			}
 
 			if cb.Data == "check_sub" {
 				subscriptionPending.RLock()
@@ -196,6 +234,17 @@ func StartTelegramBot() {
 		text := strings.TrimSpace(msg.Text)
 
 		log.Printf("[Telegram] Сообщение от %d (@%s): %s", userID, msg.From.UserName, text)
+
+		// Кнопка «А сервер-то работает?» — обрабатываем в любом состоянии
+		if text == serverStatusButtonText {
+			status := CheckMinecraftServerStatus()
+			m := tgbotapi.NewMessage(chatID, getServerStatusMessage(status))
+			m.ReplyMarkup = serverStatusKeyboard()
+			if _, err := bot.Send(m); err != nil {
+				log.Printf("[Telegram] Ошибка отправки сообщения: %v", err)
+			}
+			continue
+		}
 
 		// Проверяем, ожидает ли пользователь проверки подписки
 		subscriptionPending.RLock()
@@ -268,7 +317,11 @@ func StartTelegramBot() {
 
 		// Обработка /start
 		if !msg.IsCommand() {
-			sendMessage(bot, chatID, "Введите /start с кодом из лаунчера. Например: /start abc123")
+			m := tgbotapi.NewMessage(chatID, "Введите /start с кодом из лаунчера. Например: /start abc123")
+			m.ReplyMarkup = serverStatusKeyboard()
+			if _, err := bot.Send(m); err != nil {
+				log.Printf("[Telegram] Ошибка отправки сообщения: %v", err)
+			}
 			continue
 		}
 
@@ -280,7 +333,11 @@ func StartTelegramBot() {
 
 		code := strings.TrimSpace(msg.CommandArguments())
 		if code == "" {
-			sendMessage(bot, chatID, "Нажмите «Войти» в лаунчере — откроется ссылка с кодом. Перейдите по ней и введите код.")
+			m := tgbotapi.NewMessage(chatID, "Нажмите «Войти» в лаунчере — откроется ссылка с кодом. Перейдите по ней и введите код.")
+			m.ReplyMarkup = serverStatusKeyboard()
+			if _, err := bot.Send(m); err != nil {
+				log.Printf("[Telegram] Ошибка отправки сообщения: %v", err)
+			}
 			continue
 		}
 
@@ -345,6 +402,7 @@ func StartTelegramBot() {
 
 func sendMessage(bot *tgbotapi.BotAPI, chatID int64, text string) {
 	msg := tgbotapi.NewMessage(chatID, text)
+	msg.ReplyMarkup = serverStatusKeyboard()
 	if _, err := bot.Send(msg); err != nil {
 		log.Printf("[Telegram] Ошибка отправки сообщения: %v", err)
 	}
