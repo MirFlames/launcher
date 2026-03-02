@@ -39,13 +39,6 @@ var authStore = struct {
 	sessions map[string]*authSession
 }{sessions: make(map[string]*authSession)}
 
-// validSessions — сессии, прошедшие аутентификацию (для проверки сервером)
-var validSessions = struct {
-	sync.RWMutex
-	m map[string]ValidSessionEntry // session_uuid -> entry (nickname, telegram_id, telegram_username)
-}{m: make(map[string]ValidSessionEntry)}
-
-const validSessionsFile = "valid-sessions.json"
 const authCodeTTL = 5 * time.Minute
 const authCodeLength = 6
 
@@ -76,72 +69,9 @@ func cleanupExpiredAuthSessions() {
 	}
 }
 
-// loadValidSessions загружает сессии из файла (переживают перезапуск backend).
-// Поддерживает старый формат {"uuid": "nickname"} и новый с telegram_id, telegram_username.
-func loadValidSessions() {
-	data, err := os.ReadFile(validSessionsFile)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			log.Printf("[Auth] Не удалось загрузить %s: %v", validSessionsFile, err)
-		}
-		return
-	}
-	var raw map[string]json.RawMessage
-	if err := json.Unmarshal(data, &raw); err != nil {
-		log.Printf("[Auth] Невалидный %s: %v", validSessionsFile, err)
-		return
-	}
-	validSessions.Lock()
-	n := 0
-	for k, v := range raw {
-		if k == "" {
-			continue
-		}
-		var entry ValidSessionEntry
-		if err := json.Unmarshal(v, &entry); err == nil && entry.Nickname != "" {
-			validSessions.m[k] = entry
-			n++
-		} else {
-			var nickname string
-			if err := json.Unmarshal(v, &nickname); err == nil && nickname != "" {
-				validSessions.m[k] = ValidSessionEntry{Nickname: nickname}
-				n++
-			}
-		}
-	}
-	validSessions.Unlock()
-	log.Printf("[Auth] Загружено %d сессий из %s", n, validSessionsFile)
-}
-
 // getStoredEntryByTelegramID возвращает запись сессии по telegram_id (для повторного входа без запроса никнейма)
 func getStoredEntryByTelegramID(telegramID int64) (ValidSessionEntry, bool) {
-	validSessions.RLock()
-	defer validSessions.RUnlock()
-	for _, e := range validSessions.m {
-		if e.TelegramID != 0 && e.TelegramID == telegramID {
-			return e, true
-		}
-	}
-	return ValidSessionEntry{}, false
-}
-
-// saveValidSessions сохраняет сессии в файл (nickname, telegram_id, telegram_username)
-func saveValidSessions() {
-	validSessions.RLock()
-	m := make(map[string]ValidSessionEntry, len(validSessions.m))
-	for k, v := range validSessions.m {
-		m[k] = v
-	}
-	validSessions.RUnlock()
-
-	data, err := json.MarshalIndent(m, "", "  ")
-	if err != nil {
-		log.Printf("[Auth] Ошибка сериализации сессий: %v", err)
-		return
-	}
-	if err := os.WriteFile(validSessionsFile, data, 0600); err != nil {
-		log.Printf("[Auth] Ошибка записи %s: %v", validSessionsFile, err)
-	}
+	return sessionGetByTelegramID(telegramID)
 }
 
 // responseRecorder оборачивает ResponseWriter для перехвата статус-кода ответа
@@ -261,7 +191,7 @@ func main() {
 		return
 	}
 
-	loadValidSessions()
+	initSessionsDB()
 	LoadNewsCache()
 
 	// Настроить маршруты (cors разрешает запросы из Swagger UI и других клиентов)
@@ -673,18 +603,12 @@ func completeAuth(code, nickname, telegramUsername string, telegramID int64) err
 		TelegramUsername: strings.TrimSpace(telegramUsername),
 	}
 
-	validSessions.Lock()
 	// Удалить старую сессию этого Telegram-аккаунта (один аккаунт на сервере)
-	for uuid, e := range validSessions.m {
-		if e.TelegramID != 0 && e.TelegramID == telegramID {
-			delete(validSessions.m, uuid)
-			log.Printf("[Auth] Удалена старая сессия telegram_id=%d (uuid=%s)", telegramID, uuid)
-			break
-		}
+	sessionDeleteByTelegramID(telegramID)
+	if err := sessionSave(s.sessionUUID, entry); err != nil {
+		log.Printf("[Auth] Ошибка сохранения сессии: %v", err)
+		return err
 	}
-	validSessions.m[s.sessionUUID] = entry
-	validSessions.Unlock()
-	saveValidSessions()
 
 	log.Printf("[Auth] Сессия завершена: code=%s, nickname=%s, telegram_id=%d, telegram_username=%s, session_uuid=%s",
 		code, s.nickname, telegramID, entry.TelegramUsername, s.sessionUUID)
@@ -744,10 +668,7 @@ func handleAuthVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	validSessions.RLock()
-	entry, ok := validSessions.m[sessionUUID]
-	validSessions.RUnlock()
-
+	entry, ok := sessionGetByUUID(sessionUUID)
 	valid := ok && entry.Nickname == nickname
 	if valid {
 		log.Printf("[Auth] Verify OK: nickname=%s, session_uuid=%s", nickname, sessionUUID)
@@ -760,7 +681,7 @@ func handleAuthVerify(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleAuthInvalidate обрабатывает POST /api/auth/invalidate?nickname=X или ?session_uuid=Y
-// Удаляет сессию из valid-sessions.json (обнуление сессии пользователя)
+// Удаляет сессию из БД (обнуление сессии пользователя)
 func handleAuthInvalidate(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost && r.Method != http.MethodGet {
 		http.Error(w, "Метод не разрешен", http.StatusMethodNotAllowed)
@@ -775,23 +696,15 @@ func handleAuthInvalidate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	validSessions.Lock()
 	if sessionUUID != "" {
-		if _, ok := validSessions.m[sessionUUID]; ok {
-			delete(validSessions.m, sessionUUID)
+		if _, ok := sessionGetByUUID(sessionUUID); ok {
+			sessionDeleteByUUID(sessionUUID)
 			log.Printf("[Auth] Инвалидация по session_uuid: %s", sessionUUID)
 		}
 	} else {
-		for uuid, entry := range validSessions.m {
-			if strings.EqualFold(entry.Nickname, nickname) {
-				delete(validSessions.m, uuid)
-				log.Printf("[Auth] Инвалидация по nickname: %s (uuid=%s)", nickname, uuid)
-				break
-			}
-		}
+		sessionDeleteByNickname(nickname)
+		log.Printf("[Auth] Инвалидация по nickname: %s", nickname)
 	}
-	validSessions.Unlock()
-	saveValidSessions()
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})

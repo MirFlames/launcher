@@ -23,6 +23,10 @@ go.work
 
 # Auth sessions (survive restart, contain nicknames)
 valid-sessions.json
+valid-sessions.json.bak
+sessions.db
+sessions.db-wal
+sessions.db-shm
 
 # News cache (survive restart)
 news-cache.json
