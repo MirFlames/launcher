@@ -3,6 +3,7 @@
 services:
   mc:
     image: itzg/minecraft-server:latest
+    restart: unless-stopped
     tty: true
     stdin_open: true
     ports:
@@ -55,7 +56,9 @@ services:
         simple-voice-chat
         weaponmaster
       MODRINTH_ALLOWED_VERSION_TYPE: "beta"
+      ENFORCE_SECURE_PROFILE: "false"
       BUG_REPORT_LINK: "https://github.com/MirFlames/launcher/issues/new"
+      JVM_XX_OPTS: "+ExitOnOutOfMemoryError"
       LOG_TIMESTAMP: "true"
     volumes:
       - "./data:/data"
