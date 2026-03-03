@@ -1,0 +1,26 @@
+services:
+  backend:
+    env_file: ../.env
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "${PORT:-58293}:8080"
+      - "8080:8080"
+    environment:
+      BASE_URL: ${BASE_URL}
+      PORT: "58293"
+      FILES_PATH: /app/files
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME}
+      TELEGRAM_REQUIRED_CHANNEL: ${TELEGRAM_REQUIRED_CHANNEL}
+      SERVER_HOST: "mc"
+      SERVER_PORT: "25565"
+    volumes:
+      - "./data:/data"
+      - "./files:/app/files"
+    working_dir: /data
+    restart: unless-stopped
+    depends_on:
+      mc:
+        condition: service_started

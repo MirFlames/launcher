@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
-	"strings"
 )
 
 // Config хранит настройки лаунчера
@@ -110,29 +108,4 @@ func parseInt(s string) (int, error) {
 	var n int
 	_, err := fmt.Sscanf(s, "%d", &n)
 	return n, err
-}
-
-// resolveNewsFeedUrl превращает имя канала или t.me/xxx в RSS URL для ch2rss
-func resolveNewsFeedUrl(input string) string {
-	input = strings.TrimSpace(input)
-	if input == "" {
-		return ""
-	}
-	// Уже полный URL
-	if strings.HasPrefix(input, "http://") || strings.HasPrefix(input, "https://") {
-		return input
-	}
-	// t.me/channel или t.me/s/channel
-	re := regexp.MustCompile(`(?:t\.me/s?/)?([a-zA-Z0-9_]+)`)
-	if m := re.FindStringSubmatch(input); len(m) > 1 {
-		channel := m[1]
-		if len(channel) >= 5 && len(channel) <= 32 {
-			return "https://ch2rss.fflow.net/" + channel
-		}
-	}
-	// Просто имя канала
-	if len(input) >= 5 && len(input) <= 32 && regexp.MustCompile(`^\w+$`).MatchString(input) {
-		return "https://ch2rss.fflow.net/" + input
-	}
-	return input
 }

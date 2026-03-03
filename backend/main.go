@@ -213,9 +213,9 @@ func main() {
 	go StartTelegramBot()
 	go startHashesWatcher()
 
-	log.Printf("Сервер запущен на порту %s", config.Port)
+	log.Printf("Сервер запущен")
 	log.Printf("Файлы раздаются из: %s", config.FilesPath)
-	log.Fatal(http.ListenAndServe(":"+config.Port, log404Middleware(mux)))
+	log.Fatal(http.ListenAndServe(":8080", log404Middleware(mux)))
 }
 
 // loadConfig загружает конфигурацию из JSON файла

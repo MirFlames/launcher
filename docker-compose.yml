@@ -1,0 +1,3 @@
+include:
+  - mc-server/compose.yml
+  - backend/compose.yml

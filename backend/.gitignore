@@ -27,3 +27,6 @@ news-cache.json
 
 # Files directory
 files/
+
+# Mounted data
+data/
