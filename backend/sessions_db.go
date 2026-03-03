@@ -2,13 +2,19 @@ package main
 
 import (
 	"database/sql"
+	"embed"
 	"encoding/json"
 	"log"
 	"os"
 	"sync"
+	"time"
 
+	"github.com/pressly/goose/v3"
 	_ "modernc.org/sqlite"
 )
+
+//go:embed migrations/*.sql
+var embedMigrations embed.FS
 
 const sessionsDBFile = "sessions.db"
 const validSessionsFile = "valid-sessions.json"
@@ -25,17 +31,12 @@ func initSessionsDB() {
 	}
 	sessionsDB = db
 
-	_, err = db.Exec(`
-		CREATE TABLE IF NOT EXISTS sessions (
-			session_uuid TEXT PRIMARY KEY,
-			nickname TEXT NOT NULL,
-			telegram_id INTEGER NOT NULL DEFAULT 0,
-			telegram_username TEXT NOT NULL DEFAULT ''
-		);
-		CREATE INDEX IF NOT EXISTS idx_sessions_telegram_id ON sessions(telegram_id) WHERE telegram_id != 0;
-	`)
-	if err != nil {
-		log.Fatalf("[Auth] Не удалось создать таблицу sessions: %v", err)
+	goose.SetBaseFS(embedMigrations)
+	if err := goose.SetDialect("sqlite3"); err != nil {
+		log.Fatalf("[Auth] goose SetDialect: %v", err)
+	}
+	if err := goose.Up(db, "migrations"); err != nil {
+		log.Fatalf("[Auth] goose Up: %v", err)
 	}
 
 	migrateFromJSON()
@@ -88,14 +89,19 @@ func sessionGetByUUID(sessionUUID string) (ValidSessionEntry, bool) {
 	defer sessionsDBMu.RUnlock()
 	var nickname, telegramUsername string
 	var telegramID int64
+	var lastLoginAt sql.NullInt64
 	err := sessionsDB.QueryRow(
-		`SELECT nickname, telegram_id, telegram_username FROM sessions WHERE session_uuid = ?`,
+		`SELECT nickname, telegram_id, telegram_username, last_login_at FROM sessions WHERE session_uuid = ?`,
 		sessionUUID,
-	).Scan(&nickname, &telegramID, &telegramUsername)
+	).Scan(&nickname, &telegramID, &telegramUsername, &lastLoginAt)
 	if err == sql.ErrNoRows || err != nil {
 		return ValidSessionEntry{}, false
 	}
-	return ValidSessionEntry{Nickname: nickname, TelegramID: telegramID, TelegramUsername: telegramUsername}, true
+	entry := ValidSessionEntry{Nickname: nickname, TelegramID: telegramID, TelegramUsername: telegramUsername}
+	if lastLoginAt.Valid {
+		entry.LastLoginAt = &lastLoginAt.Int64
+	}
+	return entry, true
 }
 
 func sessionGetByTelegramID(telegramID int64) (ValidSessionEntry, bool) {
@@ -106,24 +112,42 @@ func sessionGetByTelegramID(telegramID int64) (ValidSessionEntry, bool) {
 	defer sessionsDBMu.RUnlock()
 	var nickname, telegramUsername string
 	var tid int64
+	var lastLoginAt sql.NullInt64
 	err := sessionsDB.QueryRow(
-		`SELECT nickname, telegram_id, telegram_username FROM sessions WHERE telegram_id = ? LIMIT 1`,
+		`SELECT nickname, telegram_id, telegram_username, last_login_at FROM sessions WHERE telegram_id = ? LIMIT 1`,
 		telegramID,
-	).Scan(&nickname, &tid, &telegramUsername)
+	).Scan(&nickname, &tid, &telegramUsername, &lastLoginAt)
 	if err == sql.ErrNoRows || err != nil {
 		return ValidSessionEntry{}, false
 	}
-	return ValidSessionEntry{Nickname: nickname, TelegramID: tid, TelegramUsername: telegramUsername}, true
+	entry := ValidSessionEntry{Nickname: nickname, TelegramID: tid, TelegramUsername: telegramUsername}
+	if lastLoginAt.Valid {
+		entry.LastLoginAt = &lastLoginAt.Int64
+	}
+	return entry, true
 }
 
 func sessionSave(sessionUUID string, entry ValidSessionEntry) error {
 	sessionsDBMu.Lock()
 	defer sessionsDBMu.Unlock()
 	_, err := sessionsDB.Exec(
-		`INSERT OR REPLACE INTO sessions (session_uuid, nickname, telegram_id, telegram_username) VALUES (?, ?, ?, ?)`,
-		sessionUUID, entry.Nickname, entry.TelegramID, entry.TelegramUsername,
+		`INSERT OR REPLACE INTO sessions (session_uuid, nickname, telegram_id, telegram_username, last_login_at) VALUES (?, ?, ?, ?, ?)`,
+		sessionUUID, entry.Nickname, entry.TelegramID, entry.TelegramUsername, nullInt64(entry.LastLoginAt),
 	)
 	return err
+}
+
+func nullInt64(p *int64) interface{} {
+	if p == nil {
+		return nil
+	}
+	return *p
+}
+
+func sessionUpdateLastLogin(sessionUUID string) {
+	sessionsDBMu.Lock()
+	defer sessionsDBMu.Unlock()
+	sessionsDB.Exec(`UPDATE sessions SET last_login_at = ? WHERE session_uuid = ?`, time.Now().Unix(), sessionUUID)
 }
 
 func sessionDeleteByUUID(sessionUUID string) {

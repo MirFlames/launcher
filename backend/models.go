@@ -92,4 +92,5 @@ type ValidSessionEntry struct {
 	Nickname         string `json:"nickname"`
 	TelegramID       int64  `json:"telegram_id"`
 	TelegramUsername string `json:"telegram_username"`
+	LastLoginAt      *int64 `json:"last_login_at,omitempty"` // Unix timestamp, nil если ещё не заходил
 }

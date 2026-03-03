@@ -671,7 +671,8 @@ func handleAuthVerify(w http.ResponseWriter, r *http.Request) {
 	entry, ok := sessionGetByUUID(sessionUUID)
 	valid := ok && entry.Nickname == nickname
 	if valid {
-		log.Printf("[Auth] Verify OK: nickname=%s, session_uuid=%s", nickname, sessionUUID)
+		sessionUpdateLastLogin(sessionUUID)
+		log.Printf("[Auth] Verify OK: nickname=%s, session_uuid=%s (last_login_at обновлён)", nickname, sessionUUID)
 	} else {
 		log.Printf("[Auth] Verify FAIL: nickname=%s, session_uuid=%s (ok=%v)", nickname, sessionUUID, ok)
 	}
