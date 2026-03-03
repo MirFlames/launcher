@@ -58,7 +58,7 @@ services:
       MODRINTH_ALLOWED_VERSION_TYPE: "beta"
       ENFORCE_SECURE_PROFILE: "false"
       BUG_REPORT_LINK: "https://github.com/MirFlames/launcher/issues/new"
-      JVM_XX_OPTS: "+ExitOnOutOfMemoryError"
+      JVM_XX_OPTS: "-XX:+ExitOnOutOfMemoryError"
       LOG_TIMESTAMP: "true"
     volumes:
       - "./data:/data"
