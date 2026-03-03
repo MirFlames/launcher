@@ -141,8 +141,14 @@ func updateConfigHashes(quiet bool) error {
 	if err != nil {
 		return fmt.Errorf("ошибка кодирования конфигурации: %w", err)
 	}
-	if err := os.WriteFile("config.json", data, 0644); err != nil {
-		return fmt.Errorf("ошибка сохранения конфигурации: %w", err)
+	configPath := "config.json"
+	if wd, err := os.Getwd(); err == nil {
+		configPath = filepath.Join(wd, "config.json")
+	} else {
+		configPath = "config.json"
+	}
+	if err := os.WriteFile(configPath, data, 0644); err != nil {
+		return fmt.Errorf("ошибка сохранения конфигурации в %s: %w", configPath, err)
 	}
 
 	if quiet {
@@ -265,17 +271,21 @@ func collectOtherClientFiles(otherPath string, clientFiles *[]ClientFile, existi
 }
 
 const hashesCheckInterval = 60 * time.Second
+const hashesForceUpdateInterval = 5 // принудительное обновление каждые N проверок (для Docker, где ModTime ненадёжен)
 
-// computeFilesSignature возвращает строку-подпись по путям и времени модификации файлов
-// в папках mods, versions и other. Если подпись изменилась — файлы изменились (добавлены, удалены или изменены).
+// computeFilesSignature возвращает строку-подпись по путям, размеру и времени модификации файлов
+// в папках mods, versions и other. Size добавлен т.к. ModTime ненадёжен на bind-mount (Windows→Docker).
 func computeFilesSignature() string {
 	var b strings.Builder
+	addFile := func(path string, info os.FileInfo) {
+		fmt.Fprintf(&b, "%s|%d|%d;", path, info.ModTime().UnixNano(), info.Size())
+	}
 	modsPath := filepath.Join(config.FilesPath, "mods")
 	_ = filepath.Walk(modsPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info == nil || info.IsDir() {
 			return nil
 		}
-		fmt.Fprintf(&b, "%s|%d;", path, info.ModTime().UnixNano())
+		addFile(path, info)
 		return nil
 	})
 	versionsPath := filepath.Join(config.FilesPath, "versions")
@@ -289,7 +299,7 @@ func computeFilesSignature() string {
 			if err != nil || info == nil || info.IsDir() {
 				return nil
 			}
-			fmt.Fprintf(&b, "%s|%d;", path, info.ModTime().UnixNano())
+			addFile(path, info)
 			return nil
 		})
 	}
@@ -298,22 +308,26 @@ func computeFilesSignature() string {
 		if err != nil || info == nil || info.IsDir() {
 			return nil
 		}
-		fmt.Fprintf(&b, "%s|%d;", path, info.ModTime().UnixNano())
+		addFile(path, info)
 		return nil
 	})
 	return b.String()
 }
 
 // startHashesWatcher запускает фоновую горутину, периодически проверяющую изменения файлов.
-// Хэши пересчитываются только при изменении модов или client_files.
+// Хэши пересчитываются при изменении подписи или принудительно каждые hashesForceUpdateInterval проверок
+// (для Docker, где ModTime/Size на bind-mount могут не обновляться вовремя).
 func startHashesWatcher() {
 	go func() {
 		ticker := time.NewTicker(hashesCheckInterval)
 		defer ticker.Stop()
 		lastSig := computeFilesSignature()
+		tickCount := 0
 		for range ticker.C {
+			tickCount++
 			sig := computeFilesSignature()
-			if sig != lastSig {
+			forceUpdate := tickCount%hashesForceUpdateInterval == 0
+			if sig != lastSig || forceUpdate {
 				lastSig = sig
 				if err := updateConfigHashes(true); err != nil {
 					log.Printf("[Hashes] Ошибка пересчёта: %v", err)

@@ -2,11 +2,10 @@
 .git
 .gitignore
 
-# Build artifacts
+# Build artifacts (launcher-backend НЕ исключаем — копируем в образ)
 *.exe
 *.test
 *.out
-launcher-backend
 
 # Data (mounted at runtime)
 *.db

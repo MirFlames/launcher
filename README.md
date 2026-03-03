@@ -52,6 +52,15 @@ cd client/launcher
 .\gradlew :mods:launcher_auth:build :mods:launcher_auto_connect:build
 ```
 
+### Docker
+
+Используйте `.\compose.ps1` вместо `docker compose` — при `build` сначала собирает backend на хосте (быстрее).
+
+```powershell
+.\compose.ps1 build
+.\compose.ps1 up -d
+```
+
 ### Сводка
 
 | Компонент | Команда | Источник .env |

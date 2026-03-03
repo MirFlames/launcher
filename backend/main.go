@@ -213,6 +213,13 @@ func main() {
 	go StartTelegramBot()
 	go startHashesWatcher()
 
+	// Обновить хэши сразу при старте (для Docker, где детекция изменений может не сработать)
+	if err := updateConfigHashes(true); err != nil {
+		log.Printf("[Hashes] Ошибка при старте: %v", err)
+	} else {
+		log.Printf("[Hashes] Хэши обновлены при старте")
+	}
+
 	log.Printf("Сервер запущен")
 	log.Printf("Файлы раздаются из: %s", config.FilesPath)
 	log.Fatal(http.ListenAndServe(":8080", log404Middleware(mux)))
