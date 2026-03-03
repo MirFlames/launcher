@@ -18,15 +18,9 @@ vendor/
 # Go workspace file
 go.work
 
-# Config with sensitive data (if needed)
-# config.json
-
-# Auth sessions (survive restart, contain nicknames)
-valid-sessions.json
-valid-sessions.json.bak
-sessions.db
-sessions.db-wal
-sessions.db-shm
+*.db
+*.db-wal
+*.db-shm
 
 # News cache (survive restart)
 news-cache.json

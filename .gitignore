@@ -27,3 +27,5 @@ Thumbs.db
 
 .env
 backend/config.json
+
+mc-server/
