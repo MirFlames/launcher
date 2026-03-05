@@ -44,6 +44,9 @@ type Config struct {
 	TelegramBotUsername     string `json:"telegram_bot_username"`
 	TelegramBotToken        string `json:"telegram_bot_token"`
 	TelegramRequiredChannel string `json:"telegram_required_channel"` // Канал для обязательной подписки (например @mc_fam)
+	// Уведомления: порог онлайна по умолчанию и cooldown в часах
+	NotificationDefaultThreshold int `json:"notification_default_threshold"` // default 2
+	NotificationCooldownHours    int `json:"notification_cooldown_hours"`  // default 2
 	// Конфигурация JDK
 	JDK JDKInfo `json:"jdk"`
 }
@@ -89,8 +92,10 @@ type AuthCompleteRequest struct {
 
 // ValidSessionEntry — запись в valid-sessions.json (никнейм, Telegram ID и логин)
 type ValidSessionEntry struct {
-	Nickname         string `json:"nickname"`
-	TelegramID       int64  `json:"telegram_id"`
-	TelegramUsername string `json:"telegram_username"`
-	LastLoginAt      *int64 `json:"last_login_at,omitempty"` // Unix timestamp, nil если ещё не заходил
+	Nickname          string `json:"nickname"`
+	TelegramID        int64  `json:"telegram_id"`
+	TelegramUsername   string `json:"telegram_username"`
+	LastLoginAt       *int64 `json:"last_login_at,omitempty"`       // Unix timestamp, nil если ещё не заходил
+	NotifyThreshold   int    `json:"notify_threshold,omitempty"`    // при каком онлайне уведомлять (default 2)
+	LastNotifiedAt    *int64 `json:"last_notified_at,omitempty"`    // когда последний раз отправлено уведомление
 }

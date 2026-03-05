@@ -266,6 +266,12 @@ func loadConfig(filename string) error {
 	if config.JDK.JavaExecutable == "" {
 		config.JDK.JavaExecutable = "bin\\java.exe"
 	}
+	if config.NotificationDefaultThreshold <= 0 {
+		config.NotificationDefaultThreshold = 2
+	}
+	if config.NotificationCooldownHours <= 0 {
+		config.NotificationCooldownHours = 2
+	}
 	// PORT, FILES_PATH, SERVER_HOST, TELEGRAM_* задаются из env в main()
 
 	return nil
@@ -608,6 +614,10 @@ func completeAuth(code, nickname, telegramUsername string, telegramID int64) err
 		Nickname:         s.nickname,
 		TelegramID:       telegramID,
 		TelegramUsername: strings.TrimSpace(telegramUsername),
+	}
+	// Сохраняем notify_threshold при повторном входе
+	if stored, ok := sessionGetByTelegramID(telegramID); ok && stored.NotifyThreshold > 0 {
+		entry.NotifyThreshold = stored.NotifyThreshold
 	}
 
 	// Удалить старую сессию этого Telegram-аккаунта (один аккаунт на сервере)

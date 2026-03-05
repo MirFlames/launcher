@@ -11,8 +11,9 @@ const minecraftStatusTimeout = 5 * time.Second
 
 // MinecraftStatusResult — результат проверки статуса Minecraft-сервера
 type MinecraftStatusResult struct {
-	Online bool
-	Count  int // количество игроков онлайн
+	Online      bool
+	Count       int      // количество игроков онлайн
+	PlayerNames []string // ники из Players.Sample (подвыборка, может быть неполной)
 }
 
 // CheckMinecraftServerStatus проверяет доступность сервера и количество игроков.
@@ -26,8 +27,15 @@ func CheckMinecraftServerStatus() MinecraftStatusResult {
 	if err != nil {
 		return MinecraftStatusResult{Online: false}
 	}
+	names := make([]string, 0, len(info.Players.Sample))
+	for _, player := range info.Players.Sample {
+		if player.Name != "" {
+			names = append(names, player.Name)
+		}
+	}
 	return MinecraftStatusResult{
-		Online: true,
-		Count:  int(info.Players.Online),
+		Online:      true,
+		Count:       int(info.Players.Online),
+		PlayerNames: names,
 	}
 }

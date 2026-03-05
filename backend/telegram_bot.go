@@ -38,6 +38,7 @@ const nicknamePendingTTL = 5 * time.Minute
 const subscriptionPendingTTL = 10 * time.Minute
 
 const serverStatusButtonText = "А сервер-то работает?"
+const notificationsButtonText = "Настройка уведомлений"
 
 // Minecraft nickname: 3-16 символов, буквы, цифры, подчёркивание
 var nicknameRegex = regexp.MustCompile(`^[a-zA-Z0-9_]{3,16}$`)
@@ -46,10 +47,11 @@ func isValidNickname(s string) bool {
 	return nicknameRegex.MatchString(strings.TrimSpace(s))
 }
 
-// serverStatusKeyboard — постоянная клавиатура с кнопкой проверки сервера (всегда видна внизу чата)
+// serverStatusKeyboard — постоянная клавиатура с кнопками (всегда видна внизу чата)
 func serverStatusKeyboard() tgbotapi.ReplyKeyboardMarkup {
 	k := tgbotapi.NewReplyKeyboard(
 		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton(serverStatusButtonText)),
+		tgbotapi.NewKeyboardButtonRow(tgbotapi.NewKeyboardButton(notificationsButtonText)),
 	)
 	k.ResizeKeyboard = true
 	return k
@@ -153,6 +155,8 @@ func StartTelegramBot() {
 	bot.Debug = false
 	log.Printf("[Telegram] Бот авторизован: @%s", bot.Self.UserName)
 
+	go startNotificationWorker(bot)
+
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
 	u.AllowedUpdates = []string{"message", "edited_message", "channel_post", "edited_channel_post", "callback_query"}
@@ -184,6 +188,11 @@ func StartTelegramBot() {
 				if _, err := bot.Send(m); err != nil {
 					log.Printf("[Telegram] Ошибка отправки сообщения: %v", err)
 				}
+				continue
+			}
+
+			if strings.HasPrefix(cb.Data, "notif_thresh_") {
+				handleNotificationThresholdCallback(bot, cb, userID, chatID)
 				continue
 			}
 
@@ -243,6 +252,12 @@ func StartTelegramBot() {
 			if _, err := bot.Send(m); err != nil {
 				log.Printf("[Telegram] Ошибка отправки сообщения: %v", err)
 			}
+			continue
+		}
+
+		// Кнопка «Настройка уведомлений» — настройки уведомлений
+		if text == notificationsButtonText {
+			handleNotificationsSettings(bot, chatID, userID)
 			continue
 		}
 
@@ -413,4 +428,128 @@ func answerCallback(bot *tgbotapi.BotAPI, callbackID string, text string) {
 	if _, err := bot.Request(cfg); err != nil {
 		log.Printf("[Telegram] Ошибка answerCallback: %v", err)
 	}
+}
+
+// handleNotificationsSettings показывает настройки уведомлений и inline-кнопки для выбора порога
+func handleNotificationsSettings(bot *tgbotapi.BotAPI, chatID, userID int64) {
+	stored, ok := sessionGetByTelegramID(userID)
+	if !ok || stored.Nickname == "" {
+		sendMessage(bot, chatID, "Уведомления доступны после входа. Нажмите «Войти» в лаунчере и пройдите авторизацию через /start с кодом.")
+		return
+	}
+	threshold := stored.NotifyThreshold
+	if threshold <= 0 {
+		threshold = config.NotificationDefaultThreshold
+		if threshold <= 0 {
+			threshold = 2
+		}
+	}
+	msg := tgbotapi.NewMessage(chatID, fmt.Sprintf("Уведомлять при количестве игроков: %d\n\nВыберите порог:", threshold))
+	msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("1", "notif_thresh_1"),
+			tgbotapi.NewInlineKeyboardButtonData("2", "notif_thresh_2"),
+			tgbotapi.NewInlineKeyboardButtonData("3", "notif_thresh_3"),
+			tgbotapi.NewInlineKeyboardButtonData("4", "notif_thresh_4"),
+			tgbotapi.NewInlineKeyboardButtonData("5", "notif_thresh_5"),
+		),
+	)
+	if _, err := bot.Send(msg); err != nil {
+		log.Printf("[Telegram] Ошибка отправки: %v", err)
+	}
+}
+
+// handleNotificationThresholdCallback обрабатывает выбор порога уведомлений
+func handleNotificationThresholdCallback(bot *tgbotapi.BotAPI, cb *tgbotapi.CallbackQuery, userID, chatID int64) {
+	prefix := "notif_thresh_"
+	if !strings.HasPrefix(cb.Data, prefix) {
+		return
+	}
+	nStr := strings.TrimPrefix(cb.Data, prefix)
+	var n int
+	if _, err := fmt.Sscanf(nStr, "%d", &n); err != nil || n < 1 || n > 99 {
+		answerCallback(bot, cb.ID, "Неверное значение")
+		return
+	}
+	sessionUpdateNotifyThreshold(userID, n)
+	answerCallback(bot, cb.ID, fmt.Sprintf("Готово! Буду уведомлять при %d игроках.", n))
+	m := tgbotapi.NewMessage(chatID, fmt.Sprintf("Готово! Буду уведомлять при %d игроках.", n))
+	m.ReplyMarkup = serverStatusKeyboard()
+	if _, err := bot.Send(m); err != nil {
+		log.Printf("[Telegram] Ошибка отправки: %v", err)
+	}
+}
+
+const notificationWorkerInterval = 90 * time.Second
+
+// startNotificationWorker запускает фоновую проверку онлайна и отправку уведомлений
+func startNotificationWorker(bot *tgbotapi.BotAPI) {
+	cooldownHours := config.NotificationCooldownHours
+	if cooldownHours <= 0 {
+		cooldownHours = 2
+	}
+	cooldown := time.Duration(cooldownHours) * time.Hour
+
+	ticker := time.NewTicker(notificationWorkerInterval)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		status := CheckMinecraftServerStatus()
+		if !status.Online || status.Count == 0 {
+			continue
+		}
+
+		users := sessionGetAllForNotifications()
+		playerNamesSet := make(map[string]bool)
+		for _, n := range status.PlayerNames {
+			playerNamesSet[strings.ToLower(n)] = true
+		}
+
+		playerListStr := strings.Join(status.PlayerNames, ", ")
+		if playerListStr == "" {
+			playerListStr = fmt.Sprintf("%d игроков", status.Count)
+		}
+
+		now := time.Now()
+
+		for _, u := range users {
+			if status.Count < u.NotifyThreshold {
+				continue
+			}
+			if playerNamesSet[strings.ToLower(u.Nickname)] {
+				continue // пользователь уже на сервере
+			}
+			if u.LastNotifiedAt != nil {
+				lastNotif := time.Unix(*u.LastNotifiedAt, 0)
+				if now.Sub(lastNotif) < cooldown {
+					continue
+				}
+			}
+
+			text := buildNotificationText(u, playerListStr)
+			msg := tgbotapi.NewMessage(u.TelegramID, text)
+			if _, err := bot.Send(msg); err != nil {
+				log.Printf("[Telegram] Ошибка отправки уведомления user_id=%d: %v", u.TelegramID, err)
+				continue
+			}
+			sessionUpdateLastNotified(u.TelegramID)
+			log.Printf("[Telegram] Уведомление отправлено user_id=%d", u.TelegramID)
+		}
+	}
+}
+
+func buildNotificationText(u NotificationEntry, playerListStr string) string {
+	var greeting string
+	if u.LastLoginAt == nil {
+		greeting = "Давно не видел тебя в игре!"
+	} else {
+		lastLogin := time.Unix(*u.LastLoginAt, 0)
+		if time.Since(lastLogin) < 24*time.Hour {
+			greeting = "Давно не видел тебя в игре!"
+		} else {
+			days := int(time.Since(lastLogin).Hours() / 24)
+			greeting = fmt.Sprintf("Тебя не было в игре уже целых %d суток!", days)
+		}
+	}
+	return fmt.Sprintf("Привет! %s Сейчас на сервере: %s. Заходи :)", greeting, playerListStr)
 }
