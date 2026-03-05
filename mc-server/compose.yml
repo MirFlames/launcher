@@ -29,6 +29,7 @@ services:
       MAX_WORLD_SIZE: "29999983"
       MODRINTH_PROJECTS: |-
         sound-physics-remastered:fabric-1.21.11-1.5.1
+        ledger
         player-animation-library
         balm
         better-combat
