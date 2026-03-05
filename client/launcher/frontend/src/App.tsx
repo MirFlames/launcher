@@ -69,6 +69,7 @@ function App() {
                 if (session) {
                     setAuthenticated(true);
                     setNickname(session.nickname);
+                    setNewsKey((k) => k + 1); // перезагрузить новости с учётом сессии
                 }
             })
             .catch((err) => {
@@ -83,6 +84,7 @@ function App() {
             .then(() => {
                 setAuthenticated(false);
                 setNickname('');
+                setNewsKey((k) => k + 1); // обновить новости (показать призыв войти)
             })
             .catch(() => {
                 setAuthenticated(false);

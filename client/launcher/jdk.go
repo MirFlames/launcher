@@ -5,12 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
-	"time"
 )
 
 // JDKInfo — информация о JDK из backend API
@@ -19,6 +17,52 @@ type JDKInfo struct {
 	RelativePath   string `json:"relative_path"`
 	JavaExecutable string `json:"java_executable"`
 	Mandatory      bool   `json:"mandatory"`
+	DownloadURL    string `json:"download_url,omitempty"` // Альтернативный URL (если Adoptium недоступен)
+}
+
+func getJDKExePath(launcherDir string, info *JDKInfo) string {
+	relPath := filepath.FromSlash(strings.ReplaceAll(info.RelativePath, "\\", string(filepath.Separator)))
+	return filepath.Join(launcherDir, relPath, filepath.FromSlash(strings.ReplaceAll(info.JavaExecutable, "\\", string(filepath.Separator))))
+}
+
+func checkJDKExists(info *JDKInfo, launcherDir string) (javaExe string, exists bool) {
+	javaExe = getJDKExePath(launcherDir, info)
+	_, err := os.Stat(javaExe)
+	return javaExe, err == nil
+}
+
+func downloadAndExtractJDK(info *JDKInfo, launcherDir string, onProgress func(stage, status string, progress float64)) (javaExe string, err error) {
+	relPath := filepath.FromSlash(strings.ReplaceAll(info.RelativePath, "\\", string(filepath.Separator)))
+	targetDir := filepath.Join(launcherDir, relPath)
+	javaExe = getJDKExePath(launcherDir, info)
+
+	if onProgress != nil {
+		onProgress("Подготовка JDK", "Скачивание JDK...", 0)
+	}
+	zipPath, err := downloadJDK(info.Version, info.DownloadURL, func(p float64) {
+		if onProgress != nil {
+			onProgress("Подготовка JDK", fmt.Sprintf("Скачивание JDK... %.0f%%", p*100), p*0.5)
+		}
+	})
+	if err != nil {
+		return "", fmt.Errorf("скачивание JDK: %w", err)
+	}
+	defer os.Remove(zipPath)
+
+	if onProgress != nil {
+		onProgress("Подготовка JDK", "Установка JDK...", 0.5)
+	}
+	if err := extractJDK(zipPath, targetDir, func(p float64) {
+		if onProgress != nil {
+			onProgress("Подготовка JDK", fmt.Sprintf("Установка JDK... %.0f%%", 50+p*50), 0.5+p*0.4)
+		}
+	}); err != nil {
+		return "", fmt.Errorf("установка JDK: %w", err)
+	}
+	if onProgress != nil {
+		onProgress("Подготовка JDK", "JDK установлен", 1)
+	}
+	return javaExe, nil
 }
 
 // EnsureJDK проверяет наличие JDK в папке лаунчера и при необходимости скачивает.
@@ -32,52 +76,22 @@ func EnsureJDK(launcherDir string, onProgress func(stage, status string, progres
 		return "", fmt.Errorf("не удалось получить информацию о JDK с сервера")
 	}
 
-	relPath := filepath.FromSlash(strings.ReplaceAll(info.RelativePath, "\\", string(filepath.Separator)))
-	javaExePath := filepath.Join(launcherDir, relPath, filepath.FromSlash(strings.ReplaceAll(info.JavaExecutable, "\\", string(filepath.Separator))))
-
-	if _, err := os.Stat(javaExePath); err == nil {
-		return javaExePath, nil
+	javaExe, exists := checkJDKExists(info, launcherDir)
+	if exists {
+		return javaExe, nil
 	}
-
 	if !info.Mandatory {
-		return "", fmt.Errorf("JDK не найден по пути %s. Установите JDK вручную", javaExePath)
+		return "", fmt.Errorf("JDK не найден по пути %s. Установите JDK вручную", javaExe)
 	}
 
-	if onProgress != nil {
-		onProgress("Подготовка JDK", "Скачивание JDK...", 0)
-	}
-
-	targetDir := filepath.Join(launcherDir, relPath)
-	zipPath, err := downloadJDK(info.Version, func(p float64) {
-		if onProgress != nil {
-			onProgress("Подготовка JDK", fmt.Sprintf("Скачивание JDK... %.0f%%", p*100), p*0.5)
-		}
-	})
+	javaExe, err = downloadAndExtractJDK(info, launcherDir, onProgress)
 	if err != nil {
-		return "", fmt.Errorf("скачивание JDK: %w", err)
+		return "", err
 	}
-	defer os.Remove(zipPath)
-
-	if onProgress != nil {
-		onProgress("Подготовка JDK", "Установка JDK...", 0.5)
+	if _, err := os.Stat(javaExe); err != nil {
+		return "", fmt.Errorf("java.exe не найден после установки: %s", javaExe)
 	}
-
-	if err := extractJDK(zipPath, targetDir, func(p float64) {
-		if onProgress != nil {
-			onProgress("Подготовка JDK", fmt.Sprintf("Установка JDK... %.0f%%", 50+p*50), 0.5+p*0.4)
-		}
-	}); err != nil {
-		return "", fmt.Errorf("установка JDK: %w", err)
-	}
-
-	if onProgress != nil {
-		onProgress("Подготовка JDK", "JDK установлен", 1)
-	}
-
-	if _, err := os.Stat(javaExePath); err != nil {
-		return "", fmt.Errorf("java.exe не найден после установки: %s", javaExePath)
-	}
-	return javaExePath, nil
+	return javaExe, nil
 }
 
 func fetchJDKInfo() (*JDKInfo, error) {
@@ -88,15 +102,11 @@ func fetchJDKInfo() (*JDKInfo, error) {
 	base := strings.TrimSuffix(cfg.ApiBaseUrl, "/")
 	url := base + "/api/jdk/info"
 
-	client := &http.Client{Timeout: 15 * time.Second}
-	resp, err := client.Get(url)
+	resp, err := getWithRetry(url, httpTimeoutShort)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
-	}
 	var info JDKInfo
 	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
 		return nil, err
@@ -107,82 +117,59 @@ func fetchJDKInfo() (*JDKInfo, error) {
 	return &info, nil
 }
 
-func downloadJDK(version string, onProgress func(float64)) (string, error) {
-	versionNum := strings.TrimPrefix(strings.TrimSpace(version), "jdk-")
-	major := versionNum
-	if idx := strings.Index(versionNum, "."); idx > 0 {
-		major = versionNum[:idx]
+func downloadJDK(version, customURL string, onProgress func(float64)) (string, error) {
+	var url string
+	if customURL != "" {
+		url = strings.TrimSpace(customURL)
+	} else {
+		versionNum := strings.TrimPrefix(strings.TrimSpace(version), "jdk-")
+		major := versionNum
+		if idx := strings.Index(versionNum, "."); idx > 0 {
+			major = versionNum[:idx]
+		}
+
+		osName := "windows"
+		arch := "x64"
+		switch runtime.GOOS {
+		case "darwin":
+			osName = "mac"
+			if runtime.GOARCH == "arm64" {
+				arch = "aarch64"
+			} else {
+				arch = "x64"
+			}
+		case "linux":
+			osName = "linux"
+			if runtime.GOARCH == "arm64" || runtime.GOARCH == "arm" {
+				arch = "aarch64"
+			} else {
+				arch = "x64"
+			}
+		}
+
+		// Adoptium API — бесплатный OpenJDK
+		url = fmt.Sprintf("https://api.adoptium.net/v3/binary/latest/%s/ga/%s/%s/jdk/hotspot/normal/eclipse?project=jdk&archive_type=zip",
+			major, osName, arch)
 	}
 
-	osName := "windows"
-	arch := "x64"
-	switch runtime.GOOS {
-	case "darwin":
-		osName = "mac"
-		if runtime.GOARCH == "arm64" {
-			arch = "aarch64"
-		} else {
-			arch = "x64"
-		}
-	case "linux":
-		osName = "linux"
-		if runtime.GOARCH == "arm64" || runtime.GOARCH == "arm" {
-			arch = "aarch64"
-		} else {
-			arch = "x64"
-		}
-	}
-
-	// Adoptium API — бесплатный OpenJDK
-	url := fmt.Sprintf("https://api.adoptium.net/v3/binary/latest/%s/ga/%s/%s/jdk/hotspot/normal/eclipse?project=jdk&archive_type=zip",
-		major, osName, arch)
-
-	client := &http.Client{Timeout: 10 * time.Minute}
-	resp, err := client.Get(url)
+	resp, err := getWithRetry(url, httpTimeoutJDK)
 	if err != nil {
 		return "", err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("HTTP %d", resp.StatusCode)
-	}
 
 	tmpDir, err := os.MkdirTemp("", "launcher-jdk-*")
 	if err != nil {
 		return "", err
 	}
 	zipPath := filepath.Join(tmpDir, "jdk.zip")
-	f, err := os.Create(zipPath)
-	if err != nil {
+	total := resp.ContentLength
+	if total <= 0 {
+		total = 0
+	}
+	if err := streamToFileWithProgress(resp.Body, zipPath, total, onProgress); err != nil {
 		os.RemoveAll(tmpDir)
 		return "", err
-	}
-	defer f.Close()
-
-	total := resp.ContentLength
-	var written int64
-	buf := make([]byte, 32*1024)
-	for {
-		n, err := resp.Body.Read(buf)
-		if n > 0 {
-			nn, wErr := f.Write(buf[:n])
-			written += int64(nn)
-			if wErr != nil {
-				return "", wErr
-			}
-			if onProgress != nil && total > 0 {
-				onProgress(float64(written) / float64(total))
-			}
-		}
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return "", err
-		}
-	}
-	if onProgress != nil {
-		onProgress(1)
 	}
 	return zipPath, nil
 }
@@ -218,11 +205,11 @@ func extractJDK(zipPath, targetDir string, onProgress func(float64)) error {
 		destPath := filepath.Join(targetDir, relPath)
 
 		if f.FileInfo().IsDir() {
-			os.MkdirAll(destPath, 0755)
+			os.MkdirAll(destPath, dirMode)
 			continue
 		}
 
-		if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(destPath), dirMode); err != nil {
 			return err
 		}
 		out, err := os.Create(destPath)

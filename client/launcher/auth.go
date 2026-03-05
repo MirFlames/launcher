@@ -14,12 +14,7 @@ import (
 	"github.com/pkg/browser"
 )
 
-const (
-	authPollInterval   = 2 * time.Second
-	authTimeout       = 5 * time.Minute
-	authVerifyTimeout = 5 * time.Second
-	authSessionFile   = "launcher-auth.json"
-)
+const authSessionFilename = "launcher-auth.json"
 
 // AuthSession — сессия аутентификации
 type AuthSession struct {
@@ -32,18 +27,11 @@ func (s *AuthSession) isValid() bool {
 }
 
 func getAuthFilePath() (string, error) {
-	// %appdata%/.famMcLauncherUserData/secure_auth_data/ (Windows)
-	// ~/.config/.famMcLauncherUserData/secure_auth_data/ (Linux)
-	// ~/Library/Application Support/.famMcLauncherUserData/secure_auth_data/ (macOS)
-	configDir, err := os.UserConfigDir()
+	dir, err := getAppConfigDir()
 	if err != nil {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", fmt.Errorf("не удалось определить директорию: %w", err)
-		}
-		configDir = filepath.Join(home, ".config")
+		return "", err
 	}
-	return filepath.Join(configDir, "FamMCLauncher", "auth", authSessionFile), nil
+	return filepath.Join(dir, "auth", authSessionFilename), nil
 }
 
 func authLoadSession() (*AuthSession, error) {
@@ -83,7 +71,7 @@ func authSaveSession(s *AuthSession) error {
 		return err
 	}
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, dirMode); err != nil {
 		return err
 	}
 	data, err := json.MarshalIndent(map[string]string{
@@ -93,7 +81,7 @@ func authSaveSession(s *AuthSession) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0600)
+	return os.WriteFile(path, data, authFileMode)
 }
 
 func authDeleteSession() error {
@@ -138,19 +126,13 @@ func authCallInit() (*authInitResp, error) {
 	if base == "" {
 		return nil, fmt.Errorf("настройте URL API в настройках перед входом")
 	}
-	req, err := http.NewRequest("POST", base+"/api/auth/init", nil)
-	if err != nil {
-		return nil, fmt.Errorf("создание запроса: %w", err)
-	}
-	client := &http.Client{Timeout: 15 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := doWithRetry(func() (*http.Request, error) {
+		return http.NewRequest("POST", base+"/api/auth/init", nil)
+	}, httpTimeoutShort)
 	if err != nil {
 		return nil, fmt.Errorf("не удалось подключиться к %s: %w. Проверьте URL бэкенда в настройках", base, err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("сервер вернул HTTP %d. Проверьте URL бэкенда в настройках", resp.StatusCode)
-	}
 	var r authInitResp
 	if err := json.NewDecoder(resp.Body).Decode(&r); err != nil {
 		return nil, err
@@ -167,12 +149,7 @@ func authCallCheck(code string) (*authCheckResp, error) {
 		return nil, fmt.Errorf("настройте URL API в настройках")
 	}
 	u := base + "/api/auth/check?code=" + url.QueryEscape(code)
-	req, err := http.NewRequest("GET", u, nil)
-	if err != nil {
-		return nil, err
-	}
-	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := getWithRetry(u, authCheckTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -193,12 +170,7 @@ func authCallVerify(nickname, sessionUUID string) *bool {
 		return nil
 	}
 	u := base + "/api/auth/verify?nickname=" + url.QueryEscape(nickname) + "&session_uuid=" + url.QueryEscape(sessionUUID)
-	req, err := http.NewRequest("GET", u, nil)
-	if err != nil {
-		return nil
-	}
-	client := &http.Client{Timeout: authVerifyTimeout}
-	resp, err := client.Do(req)
+	resp, err := getWithRetry(u, authVerifyTimeout)
 	if err != nil {
 		return nil
 	}

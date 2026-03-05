@@ -15,7 +15,6 @@ export namespace main {
 	    }
 	}
 	export class Config {
-	    newsFeedUrl: string;
 	    apiBaseUrl: string;
 	    server_host: string;
 	    server_port: number;
@@ -27,7 +26,6 @@ export namespace main {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.newsFeedUrl = source["newsFeedUrl"];
 	        this.apiBaseUrl = source["apiBaseUrl"];
 	        this.server_host = source["server_host"];
 	        this.server_port = source["server_port"];

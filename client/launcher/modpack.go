@@ -4,11 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 )
 
 // ModpackConfig — корневая структура modpack.json (формат Mojang/Fabric)
@@ -155,15 +153,11 @@ func LoadModpack() (*ModpackConfig, error) {
 }
 
 func fetchModpackFromURL(url string) (*ModpackConfig, error) {
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Get(url)
+	resp, err := getWithRetry(url, httpTimeoutModpack)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
-	}
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err

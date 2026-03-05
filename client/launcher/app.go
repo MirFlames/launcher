@@ -2,12 +2,8 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"net/http"
-	"net/url"
 	"os/exec"
-	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -31,21 +27,6 @@ func (a *App) startup(ctx context.Context) {
 // Greet returns a greeting for the given name
 func (a *App) Greet(name string) string {
 	return fmt.Sprintf("Hello %s, It's show time!", name)
-}
-
-// NewsFeedResponse — ответ API новостей (расширяемая структура для уведомлений о версии и т.п.)
-type NewsFeedResponse struct {
-	Authenticated bool      `json:"authenticated"`
-	Message       string    `json:"message,omitempty"`
-	News          *NewsItem `json:"news,omitempty"`
-	Update        any       `json:"update,omitempty"` // зарезервировано: уведомление о новой версии
-}
-
-// NewsItem — одна новость
-type NewsItem struct {
-	Text      string `json:"text"`
-	Link      string `json:"link,omitempty"`
-	Published string `json:"published,omitempty"`
 }
 
 // GetConfig возвращает текущие настройки
@@ -150,42 +131,8 @@ func (a *App) PlayMinecraft() error {
 }
 
 // GetNewsFeed запрашивает новости у бэкенда (с проверкой сессии).
-// Передаёт nickname, launcher_version.
 func (a *App) GetNewsFeed() (*NewsFeedResponse, error) {
 	base := getApiBaseUrl()
 	session, _ := authLoadSession()
-
-	params := url.Values{}
-	params.Set("launcher_version", LauncherVersion)
-	if session != nil && session.isValid() {
-		params.Set("nickname", session.Nickname)
-		params.Set("session_uuid", session.SessionUUID)
-	}
-
-	reqURL := base + "/api/news?" + params.Encode()
-	client := &http.Client{Timeout: 15 * time.Second}
-	resp, err := client.Get(reqURL)
-	if err != nil {
-		return &NewsFeedResponse{
-			Authenticated: false,
-			Message:       "Не удалось подключиться к серверу. Проверьте URL в настройках.",
-		}, nil
-	}
-	defer resp.Body.Close()
-
-	var result NewsFeedResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return &NewsFeedResponse{
-			Authenticated: false,
-			Message:       "Ошибка ответа сервера",
-		}, nil
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		if result.Message == "" {
-			result.Message = "Сервер вернул ошибку"
-		}
-		result.Authenticated = false
-	}
-	return &result, nil
+	return fetchNewsFeed(base, session)
 }

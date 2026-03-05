@@ -9,8 +9,6 @@ import (
 
 // Config хранит настройки лаунчера
 type Config struct {
-	// NewsFeedUrl — RSS URL ленты новостей (из Telegram через ch2rss и т.п.)
-	NewsFeedUrl string `json:"newsFeedUrl"`
 	// ApiBaseUrl — базовый URL бэкенда
 	ApiBaseUrl string `json:"apiBaseUrl"`
 	// ServerHost — IP/хост сервера Minecraft для автоподключения (передаётся в --server)
@@ -23,16 +21,24 @@ type Config struct {
 
 const configFilename = "launcher-config.json"
 
-func getConfigPath() (string, error) {
+func getAppConfigDir() (string, error) {
 	configDir, err := os.UserConfigDir()
 	if err != nil {
 		home, homeErr := os.UserHomeDir()
 		if homeErr != nil {
-			return configFilename, nil
+			return "", fmt.Errorf("не удалось определить директорию: %w", err)
 		}
 		configDir = filepath.Join(home, ".config")
 	}
-	return filepath.Join(configDir, "FamMCLauncher", "config", configFilename), nil
+	return filepath.Join(configDir, "FamMCLauncher"), nil
+}
+
+func getConfigPath() (string, error) {
+	dir, err := getAppConfigDir()
+	if err != nil {
+		return configFilename, nil
+	}
+	return filepath.Join(dir, "config", configFilename), nil
 }
 
 // LoadConfig загружает конфиг из файла
@@ -51,9 +57,6 @@ func LoadConfig() (*Config, error) {
 	}
 	var raw map[string]json.RawMessage
 	_ = json.Unmarshal(data, &raw)
-	if cfg.NewsFeedUrl == "" {
-		cfg.NewsFeedUrl = "mc_fam"
-	}
 	if _, ok := raw["sync_client_settings"]; !ok {
 		cfg.SyncClientSettings = true
 	}
@@ -78,14 +81,14 @@ func SaveConfig(cfg *Config) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), dirMode); err != nil {
 		return err
 	}
 	data, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0644)
+	return os.WriteFile(path, data, configFileMode)
 }
 
 func defaultConfig() *Config {
@@ -96,7 +99,6 @@ func defaultConfig() *Config {
 		}
 	}
 	return &Config{
-		NewsFeedUrl:        "mc_fam",
 		ApiBaseUrl:         buildDefaultApiBaseUrl,
 		ServerHost:         buildDefaultServerHost,
 		ServerPort:         port,

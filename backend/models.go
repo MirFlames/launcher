@@ -63,10 +63,11 @@ type LauncherVersion struct {
 
 // JDKInfo представляет информацию о требуемом JDK
 type JDKInfo struct {
-	Version        string `json:"version"`         // Формат: jdk-21.0.2
-	RelativePath   string `json:"relative_path"`   // Относительный путь от папки Minecraft
-	JavaExecutable string `json:"java_executable"` // Путь к java.exe относительно JDK
+	Version        string `json:"version"`          // Формат: jdk-21.0.2
+	RelativePath   string `json:"relative_path"`    // Относительный путь от папки Minecraft
+	JavaExecutable string `json:"java_executable"`  // Путь к java.exe относительно JDK
 	Mandatory      bool   `json:"mandatory"`
+	DownloadURL    string `json:"download_url,omitempty"` // Альтернативный URL (если Adoptium недоступен)
 }
 
 // AuthInitResponse — ответ на POST /api/auth/init

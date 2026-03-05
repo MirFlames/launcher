@@ -14,60 +14,53 @@ type LaunchProgress func(stage, status string, progress float64)
 // LaunchProcessStarted — callback при успешном запуске процесса (для скрытия окна и ожидания выхода)
 type LaunchProcessStarted func(cmd *exec.Cmd)
 
-func ruleMatchesOS(rule *ModpackRule, currentOS string) bool {
-	if rule == nil || rule.OS == nil || rule.OS.Name == "" {
+// evaluateRules возвращает true если правила разрешают применение.
+// emptyOSMatchesAll: при true правило без OS считается совпавшим (для JVM args)
+func evaluateRules(rules []ModpackRule, currentPlatform string, emptyOSMatchesAll bool, featureChecker func(*ModpackRuleFeatures) bool) bool {
+	if rules == nil || len(rules) == 0 {
 		return true
 	}
-	return strings.EqualFold(rule.OS.Name, currentOS)
-}
-
-func argumentEntryApplies(entry *ModpackArgumentEntry, currentOS string) bool {
-	if entry == nil || entry.Values == nil {
-		return false
-	}
-	if entry.Rules == nil || len(entry.Rules) == 0 {
-		return true
-	}
-	for _, r := range entry.Rules {
-		osMatch := ruleMatchesOS(&r, currentOS)
-		if strings.EqualFold(r.Action, "allow") && osMatch {
-			return true
+	for _, r := range rules {
+		osMatch := false
+		if r.OS == nil || r.OS.Name == "" {
+			osMatch = emptyOSMatchesAll
+		} else {
+			osMatch = strings.EqualFold(r.OS.Name, currentPlatform)
 		}
-		if strings.EqualFold(r.Action, "disallow") && osMatch {
-			return false
-		}
-	}
-	return false
-}
-
-func argumentEntryAppliesForGame(entry *ModpackArgumentEntry, currentOS string, ctx *LaunchContext) bool {
-	if entry == nil || entry.Values == nil {
-		return false
-	}
-	if entry.Rules == nil || len(entry.Rules) == 0 {
-		return true
-	}
-	for _, r := range entry.Rules {
-		if r.OS != nil && r.OS.Name != "" {
-			if strings.EqualFold(r.Action, "allow") && strings.EqualFold(r.OS.Name, currentOS) {
+		if osMatch {
+			if strings.EqualFold(r.Action, "allow") {
 				return true
 			}
-			if strings.EqualFold(r.Action, "disallow") && strings.EqualFold(r.OS.Name, currentOS) {
+			if strings.EqualFold(r.Action, "disallow") {
 				return false
 			}
 		}
-		if r.Features != nil {
-			if featureMatches(ctx, r.Features) {
-				if strings.EqualFold(r.Action, "allow") {
-					return true
-				}
-				if strings.EqualFold(r.Action, "disallow") {
-					return false
-				}
+		if r.Features != nil && featureChecker != nil && featureChecker(r.Features) {
+			if strings.EqualFold(r.Action, "allow") {
+				return true
+			}
+			if strings.EqualFold(r.Action, "disallow") {
+				return false
 			}
 		}
 	}
 	return false
+}
+
+func jvmArgumentApplies(entry *ModpackArgumentEntry, currentPlatform string) bool {
+	if entry == nil || entry.Values == nil {
+		return false
+	}
+	return evaluateRules(entry.Rules, currentPlatform, true, nil)
+}
+
+func gameArgumentApplies(entry *ModpackArgumentEntry, currentPlatform string, ctx *LaunchContext) bool {
+	if entry == nil || entry.Values == nil {
+		return false
+	}
+	return evaluateRules(entry.Rules, currentPlatform, false, func(f *ModpackRuleFeatures) bool {
+		return featureMatches(ctx, f)
+	})
 }
 
 func featureMatches(ctx *LaunchContext, f *ModpackRuleFeatures) bool {
@@ -132,14 +125,14 @@ func (c *LaunchContext) substitute(s string) string {
 	return s
 }
 
-func resolveJvmArguments(modpack *ModpackConfig, nativesDir, classpath, launcherName, launcherVersion string) []string {
-	currentOS := getCurrentOS()
+func resolveJvmArguments(modpack *ModpackConfig, nativesDir, classpath, launcherNameVal, launcherVersion string) []string {
+	currentPlatform := getCurrentPlatform()
 	var result []string
 	if modpack.Arguments == nil || modpack.Arguments.JVM == nil {
 		return result
 	}
 	for _, entry := range modpack.Arguments.JVM {
-		if !argumentEntryApplies(&entry, currentOS) {
+		if !jvmArgumentApplies(&entry, currentPlatform) {
 			continue
 		}
 		for _, v := range entry.Values {
@@ -148,7 +141,7 @@ func resolveJvmArguments(modpack *ModpackConfig, nativesDir, classpath, launcher
 			}
 			v = strings.ReplaceAll(v, "${natives_directory}", nativesDir)
 			v = strings.ReplaceAll(v, "${classpath}", classpath)
-			v = strings.ReplaceAll(v, "${launcher_name}", launcherName)
+			v = strings.ReplaceAll(v, "${launcher_name}", launcherNameVal)
 			v = strings.ReplaceAll(v, "${launcher_version}", launcherVersion)
 			result = append(result, v)
 		}
@@ -157,13 +150,13 @@ func resolveJvmArguments(modpack *ModpackConfig, nativesDir, classpath, launcher
 }
 
 func resolveGameArguments(modpack *ModpackConfig, ctx *LaunchContext) []string {
-	currentOS := getCurrentOS()
+	currentPlatform := getCurrentPlatform()
 	var result []string
 	if modpack.Arguments == nil || modpack.Arguments.Game == nil {
 		return result
 	}
 	for _, entry := range modpack.Arguments.Game {
-		if !argumentEntryAppliesForGame(&entry, currentOS, ctx) {
+		if !gameArgumentApplies(&entry, currentPlatform, ctx) {
 			continue
 		}
 		for _, v := range entry.Values {
@@ -176,39 +169,35 @@ func resolveGameArguments(modpack *ModpackConfig, ctx *LaunchContext) []string {
 	return result
 }
 
-// LaunchMinecraft выполняет полный flow: JDK → modpack → downloads → launch.
-// Если onProcessStarted задан, вызывается при успешном запуске процесса (для скрытия окна и ожидания выхода).
-func LaunchMinecraft(onProgress LaunchProgress, onProcessStarted LaunchProcessStarted) error {
-	launcherDir, err := getLauncherDir()
-	if err != nil {
-		return fmt.Errorf("папка лаунчера: %w", err)
-	}
-	gameDir := launcherDir
-
+func ensurePrerequisites(launcherDir string, onProgress LaunchProgress) (javaExe string, cfg *Config, modpack *ModpackConfig, version *ServerVersion, err error) {
 	if onProgress != nil {
 		onProgress("Подготовка", "Проверка JDK...", 0)
 	}
-	javaExe, err := EnsureJDK(launcherDir, onProgress)
+	javaExe, err = EnsureJDK(launcherDir, onProgress)
 	if err != nil {
-		return fmt.Errorf("JDK: %w", err)
+		return "", nil, nil, nil, fmt.Errorf("JDK: %w", err)
 	}
 
 	if onProgress != nil {
 		onProgress("Модпак", "Загрузка modpack...", 0)
 	}
-	if cfg, _ := LoadConfig(); cfg == nil || cfg.ApiBaseUrl == "" {
-		return fmt.Errorf("настройте URL API в настройках перед запуском")
+	cfg, _ = LoadConfig()
+	if cfg == nil || cfg.ApiBaseUrl == "" {
+		return "", nil, nil, nil, fmt.Errorf("настройте URL API в настройках перед запуском")
 	}
-	modpack, err := LoadModpack()
+	modpack, err = LoadModpack()
 	if err != nil {
-		return fmt.Errorf("modpack: %w", err)
+		return "", nil, nil, nil, fmt.Errorf("modpack: %w", err)
 	}
 
 	if onProgress != nil {
 		onProgress("Модпак", "Проверка версии...", 0)
 	}
-	version, _ := FetchServerVersion()
+	version, _ = FetchServerVersion()
+	return javaExe, cfg, modpack, version, nil
+}
 
+func ensureGameFiles(gameDir string, version *ServerVersion, modpack *ModpackConfig, cfg *Config, onProgress LaunchProgress) error {
 	if onProgress != nil {
 		onProgress("Загрузка модов", "Скачивание модов...", 0)
 	}
@@ -217,12 +206,9 @@ func LaunchMinecraft(onProgress LaunchProgress, onProcessStarted LaunchProcessSt
 		return fmt.Errorf("моды: %w", err)
 	}
 
-	// Синхронизация settings-файлов (options.txt) только при докачке модов с сервера
-	if version != nil && modsDownloaded {
-		if cfg, _ := LoadConfig(); cfg != nil && cfg.SyncClientSettings {
-			if err := EnsureClientFiles(gameDir, version, onProgress); err != nil {
-				return fmt.Errorf("client_files: %w", err)
-			}
+	if version != nil && modsDownloaded && cfg != nil && cfg.SyncClientSettings {
+		if err := EnsureClientFiles(gameDir, version, onProgress); err != nil {
+			return fmt.Errorf("client_files: %w", err)
 		}
 	}
 
@@ -244,34 +230,32 @@ func LaunchMinecraft(onProgress LaunchProgress, onProcessStarted LaunchProcessSt
 	if onProgress != nil {
 		onProgress("Загрузка ассетов", "Индекс ассетов...", 0)
 	}
-	if err := EnsureAssetIndex(gameDir, modpack); err != nil {
-		// не критично
-	}
+	_ = EnsureAssetIndex(gameDir, modpack)
 	if onProgress != nil {
 		onProgress("Загрузка ассетов", "Скачивание ассетов...", 0)
 	}
-	if err := EnsureAssets(gameDir, modpack, onProgress); err != nil {
-		// не критично
-	}
+	_ = EnsureAssets(gameDir, modpack, onProgress)
+	return nil
+}
 
-	versionID := modpack.ID
-	if versionID == "" {
-		versionID = "modpack"
-	}
+func findClientJar(gameDir, versionID string) (string, error) {
 	clientJar := filepath.Join(gameDir, "versions", versionID, versionID+".jar")
 	if _, err := os.Stat(clientJar); err != nil {
 		clientJar = filepath.Join(gameDir, "versions", versionID, "client.jar")
 	}
 	if _, err := os.Stat(clientJar); err != nil {
-		return fmt.Errorf("client.jar не найден в versions/%s/", versionID)
+		return "", fmt.Errorf("client.jar не найден в versions/%s/", versionID)
 	}
+	return clientJar, nil
+}
 
-	currentOS := getCurrentOS()
+func buildClasspath(gameDir string, modpack *ModpackConfig, clientJar string) (string, error) {
+	currentPlatform := getCurrentPlatform()
 	var classpath []string
 	classpath = append(classpath, clientJar)
 	for i := range modpack.Libraries {
 		lib := &modpack.Libraries[i]
-		if !libraryApplies(lib, currentOS) {
+		if !libraryApplies(lib, currentPlatform) {
 			continue
 		}
 		path := getLibraryPath(gameDir, lib)
@@ -281,22 +265,16 @@ func LaunchMinecraft(onProgress LaunchProgress, onProcessStarted LaunchProcessSt
 			}
 		}
 	}
-
-	sep := string(os.PathListSeparator)
-	cp := strings.Join(classpath, sep)
 	if len(classpath) <= 1 {
-		return fmt.Errorf("classpath пуст")
+		return "", fmt.Errorf("classpath пуст")
 	}
+	return strings.Join(classpath, string(os.PathListSeparator)), nil
+}
 
+func buildLaunchContext(session *AuthSession, versionID, gameDir string) *LaunchContext {
 	base := strings.ReplaceAll(gameDir, "\\", "/")
-	nativesPath := base + "/natives"
-	assetsRoot := base + "/assets"
-	assetsIndex := modpack.Assets
-	if assetsIndex == "" {
-		assetsIndex = "29"
-	}
-
-	session, _ := authLoadSession()
+	assetsIndex := defaultAssetsIndex
+	// assetsIndex из modpack не передаём сюда — используем дефолт, т.к. modpack не в сигнатуре
 	playerName := "Player"
 	authUUID := "00000000-0000-0000-0000-000000000000"
 	authToken := "0"
@@ -305,10 +283,9 @@ func LaunchMinecraft(onProgress LaunchProgress, onProcessStarted LaunchProcessSt
 		authUUID = session.SessionUUID
 		authToken = session.SessionUUID
 	}
-
-	ctx := &LaunchContext{
+	return &LaunchContext{
 		GameDirectory:   base,
-		AssetsRoot:      assetsRoot,
+		AssetsRoot:      base + "/assets",
 		AssetsIndexName: assetsIndex,
 		AuthPlayerName:  playerName,
 		VersionName:     versionID,
@@ -316,43 +293,31 @@ func LaunchMinecraft(onProgress LaunchProgress, onProcessStarted LaunchProcessSt
 		AuthAccessToken: authToken,
 		ClientID:        "0",
 		AuthXuid:        "0",
-		VersionType:     "fabric",
+		VersionType:     defaultVersionType,
 	}
+}
 
-	jvmArgs := resolveJvmArguments(modpack, nativesPath, cp, "custom", "1.0")
-	gameArgs := resolveGameArguments(modpack, ctx)
-
-	// Передаём --server и --port для автоподключения (мод launcher_auto_connect читает их из аргументов)
-	// Берём из конфига лаунчера, при отсутствии — из ответа API /api/version. Без дефолтов.
-	serverHost, serverPort := "", ""
-	if cfg, _ := LoadConfig(); cfg != nil {
+func resolveServerConnection(cfg *Config, version *ServerVersion) (host, port string) {
+	if cfg != nil {
 		if cfg.ServerHost != "" {
-			serverHost = cfg.ServerHost
+			host = cfg.ServerHost
 		}
 		if cfg.ServerPort > 0 {
-			serverPort = fmt.Sprintf("%d", cfg.ServerPort)
+			port = fmt.Sprintf("%d", cfg.ServerPort)
 		}
 	}
-	if serverHost == "" && version != nil {
-		serverHost = version.ServerHost
-		serverPort = version.ServerPort
+	if host == "" && version != nil {
+		host = version.ServerHost
+		port = version.ServerPort
 	}
-	if serverHost == "" && buildDefaultServerHost != "" {
-		serverHost = buildDefaultServerHost
-		serverPort = buildDefaultServerPort
+	if host == "" && buildDefaultServerHost != "" {
+		host = buildDefaultServerHost
+		port = buildDefaultServerPort
 	}
-	if serverHost != "" {
-		if serverPort == "" {
-			return fmt.Errorf("server_port не задан. Укажите в настройках или задайте SERVER_PORT в .env при сборке")
-		}
-		gameArgs = append(gameArgs, "--server", serverHost, "--port", serverPort)
-	}
+	return host, port
+}
 
-	mainClass := modpack.MainClass
-	if mainClass == "" {
-		return fmt.Errorf("mainClass не указан в modpack.json")
-	}
-
+func spawnMinecraftProcess(javaExe, gameDir string, jvmArgs []string, mainClass string, gameArgs []string, onProgress LaunchProgress, onProcessStarted LaunchProcessStarted) error {
 	var args []string
 	args = append(args, jvmArgs...)
 	args = append(args, mainClass)
@@ -365,7 +330,6 @@ func LaunchMinecraft(onProgress LaunchProgress, onProcessStarted LaunchProcessSt
 	cmd := exec.Command(javaExe, args...)
 	cmd.Dir = gameDir
 	cmd.SysProcAttr = sysProcAttrForLaunch
-	// inheritIO — дочерний процесс наследует stdin/stdout/stderr (на Windows с CREATE_NO_WINDOW консоль не показывается)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -376,6 +340,66 @@ func LaunchMinecraft(onProgress LaunchProgress, onProcessStarted LaunchProcessSt
 	if onProcessStarted != nil {
 		onProcessStarted(cmd)
 	}
-	// Не вызываем Release() — процесс остаётся дочерним, как в Java ProcessBuilder
 	return nil
+}
+
+// LaunchMinecraft выполняет полный flow: JDK → modpack → downloads → launch.
+// Если onProcessStarted задан, вызывается при успешном запуске процесса (для скрытия окна и ожидания выхода).
+func LaunchMinecraft(onProgress LaunchProgress, onProcessStarted LaunchProcessStarted) error {
+	launcherDir, err := getLauncherDir()
+	if err != nil {
+		return fmt.Errorf("папка лаунчера: %w", err)
+	}
+
+	javaExe, cfg, modpack, version, err := ensurePrerequisites(launcherDir, onProgress)
+	if err != nil {
+		return err
+	}
+
+	if err := ensureGameFiles(launcherDir, version, modpack, cfg, onProgress); err != nil {
+		return err
+	}
+
+	versionID := modpack.ID
+	if versionID == "" {
+		versionID = "modpack"
+	}
+	clientJar, err := findClientJar(launcherDir, versionID)
+	if err != nil {
+		return err
+	}
+
+	cp, err := buildClasspath(launcherDir, modpack, clientJar)
+	if err != nil {
+		return err
+	}
+
+	base := strings.ReplaceAll(launcherDir, "\\", "/")
+	nativesPath := base + "/natives"
+	assetsIndex := modpack.Assets
+	if assetsIndex == "" {
+		assetsIndex = defaultAssetsIndex
+	}
+
+	session, _ := authLoadSession()
+	ctx := buildLaunchContext(session, versionID, launcherDir)
+	ctx.AssetsIndexName = assetsIndex
+
+	jvmArgs := resolveJvmArguments(modpack, nativesPath, cp, launcherName, launcherVersionFallback)
+	gameArgs := resolveGameArguments(modpack, ctx)
+
+	serverHost, serverPort := resolveServerConnection(cfg, version)
+	if serverHost != "" {
+		if serverPort == "" {
+			return fmt.Errorf("server_port не задан. Укажите в настройках или задайте SERVER_PORT в .env при сборке")
+		}
+		gameArgs = append(gameArgs, "--server", serverHost, "--port", serverPort)
+	}
+
+	mainClass := modpack.MainClass
+	if mainClass == "" {
+		return fmt.Errorf("mainClass не указан в modpack.json")
+	}
+
+	return spawnMinecraftProcess(javaExe, launcherDir, jvmArgs, mainClass, gameArgs, onProgress, onProcessStarted)
 }
