@@ -1,0 +1,10 @@
+# Вариант с mc-proxy: клиенты подключаются к прокси, mc-сервер без проброса портов.
+# Запуск: docker compose -f docker-compose.yml -f docker-compose.proxy.yml up -d --build
+# mc уже подключается из docker-compose.yml через mc-server/compose.yml
+
+include:
+  - mc-proxy/compose.yml
+
+services:
+  mc:
+    ports: []  # Прокси занимает 25565 и 24454
