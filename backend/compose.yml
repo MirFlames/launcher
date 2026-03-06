@@ -1,5 +1,7 @@
 services:
   backend:
+    labels:
+      logging: "promtail"
     env_file:
       - ../.env
     build:

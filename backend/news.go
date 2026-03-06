@@ -117,6 +117,7 @@ func handleNews(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	newsRequestsTotal.Inc()
 	nickname := strings.TrimSpace(r.URL.Query().Get("nickname"))
 	sessionUUID := strings.TrimSpace(r.URL.Query().Get("session_uuid"))
 	_ = r.URL.Query().Get("launcher_version") // принимаем, пока не используется (для уведомлений о версии)

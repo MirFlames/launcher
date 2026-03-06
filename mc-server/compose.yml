@@ -4,6 +4,8 @@ services:
   mc:
     image: itzg/minecraft-server:latest
     restart: unless-stopped
+    labels:
+      logging: "promtail"
     tty: true
     stdin_open: true
     ports:

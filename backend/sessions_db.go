@@ -84,6 +84,16 @@ func migrateFromJSON() {
 	}
 }
 
+func sessionCount() int {
+	sessionsDBMu.RLock()
+	defer sessionsDBMu.RUnlock()
+	var n int
+	if err := sessionsDB.QueryRow(`SELECT COUNT(*) FROM sessions`).Scan(&n); err != nil {
+		return 0
+	}
+	return n
+}
+
 func sessionGetByUUID(sessionUUID string) (ValidSessionEntry, bool) {
 	sessionsDBMu.RLock()
 	defer sessionsDBMu.RUnlock()

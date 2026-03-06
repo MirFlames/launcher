@@ -208,6 +208,7 @@ func main() {
 	mux.HandleFunc("/api/auth/invalidate", cors.wrap(handleAuthInvalidate))
 	mux.HandleFunc("/api/news", cors.wrap(handleNews))
 	mux.HandleFunc("/files/", cors.wrap(handleFileDownload))
+	mux.Handle("/metrics", metricsHandler())
 	mux.HandleFunc("/", cors.wrap(serve404Page))
 
 	go StartTelegramBot()
@@ -222,7 +223,7 @@ func main() {
 
 	log.Printf("Сервер запущен")
 	log.Printf("Файлы раздаются из: %s", config.FilesPath)
-	log.Fatal(http.ListenAndServe(":8080", log404Middleware(mux)))
+	log.Fatal(http.ListenAndServe(":8080", metricsMiddleware(log404Middleware(mux))))
 }
 
 // loadConfig загружает конфигурацию из JSON файла
@@ -454,6 +455,8 @@ func handleFileDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	fileDownloadsTotal.Inc()
+	fileDownloadBytesTotal.Add(float64(fileInfo.Size()))
 	log.Printf("Файл %s отправлен.", filePath)
 }
 
@@ -529,6 +532,7 @@ func handleAuthInit(w http.ResponseWriter, r *http.Request) {
 	authStore.sessions[code] = &authSession{code: code, createdAt: time.Now()}
 	authStore.Unlock()
 
+	authInitTotal.Inc()
 	go cleanupExpiredAuthSessions()
 
 	log.Printf("[Auth] Init: code=%s, bot_url=%s", code, botURL)
@@ -655,17 +659,21 @@ func handleAuthComplete(w http.ResponseWriter, r *http.Request) {
 	if err := completeAuth(req.Code, req.Nickname, req.TelegramUsername, req.TelegramID); err != nil {
 		log.Printf("[Auth] completeAuth ошибка: %v", err)
 		if err.Error() == "код не найден" || err.Error() == "код истёк" {
+			authCompleteTotal.WithLabelValues("expired").Inc()
 			http.Error(w, err.Error(), http.StatusGone)
 			return
 		}
 		if err.Error() == "сессия уже завершена" {
+			authCompleteTotal.WithLabelValues("already_completed").Inc()
 			http.Error(w, err.Error(), http.StatusConflict)
 			return
 		}
+		authCompleteTotal.WithLabelValues("error").Inc()
 		http.Error(w, "Внутренняя ошибка", http.StatusInternalServerError)
 		return
 	}
 
+	authCompleteTotal.WithLabelValues("success").Inc()
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
@@ -689,8 +697,10 @@ func handleAuthVerify(w http.ResponseWriter, r *http.Request) {
 	valid := ok && entry.Nickname == nickname
 	if valid {
 		sessionUpdateLastLogin(sessionUUID)
+		authVerifyTotal.WithLabelValues("true").Inc()
 		log.Printf("[Auth] Verify OK: nickname=%s, session_uuid=%s (last_login_at обновлён)", nickname, sessionUUID)
 	} else {
+		authVerifyTotal.WithLabelValues("false").Inc()
 		log.Printf("[Auth] Verify FAIL: nickname=%s, session_uuid=%s (ok=%v)", nickname, sessionUUID, ok)
 	}
 
