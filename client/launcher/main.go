@@ -19,8 +19,8 @@ func main() {
 	// Create application with options
 	err := wails.Run(&options.App{
 		Title:         "Minecraft",
-		Width:         600,
-		Height:        400,
+		Width:         560,
+		Height:        540,
 		Frameless:     true,
 		DisableResize: true,
 		AssetServer: &assetserver.Options{

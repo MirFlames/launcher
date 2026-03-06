@@ -30,9 +30,12 @@ export function NewsFeed() {
 
     if (loading && !response) {
         return (
-            <div className="news-feed">
+            <div className="news-feed news-feed--loading">
                 <h3 className="news-feed-title">Новость дня</h3>
-                <p className="news-feed-placeholder">Загрузка…</p>
+                <div className="news-feed-skeleton">
+                    <span className="news-feed-skeleton-line" />
+                    <span className="news-feed-skeleton-line news-feed-skeleton-line--short" />
+                </div>
             </div>
         );
     }
@@ -42,6 +45,9 @@ export function NewsFeed() {
             <div className="news-feed">
                 <h3 className="news-feed-title">Новость дня</h3>
                 <p className="news-feed-error">{error}</p>
+                <button type="button" className="news-feed-retry" onClick={load}>
+                    Повторить
+                </button>
             </div>
         );
     }
@@ -75,20 +81,22 @@ export function NewsFeed() {
         <div className="news-feed">
             <h3 className="news-feed-title">Новость дня</h3>
             <div className="news-feed-item">
-                {news.published && (
-                    <span className="news-feed-date">{news.published}</span>
-                )}
                 <p className="news-feed-desc">{truncated}</p>
-                {news.link && (
-                    <a
-                        href={news.link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="news-feed-link"
-                    >
-                        Читать в канале →
-                    </a>
-                )}
+                <div className="news-feed-meta">
+                    {news.published && (
+                        <span className="news-feed-date">{news.published}</span>
+                    )}
+                    {news.link && (
+                        <a
+                            href={news.link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="news-feed-link"
+                        >
+                            Читать в канале →
+                        </a>
+                    )}
+                </div>
             </div>
         </div>
     );

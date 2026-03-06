@@ -18,7 +18,7 @@ const (
 const (
 	defaultVersionType      = "fabric"
 	launcherName           = "custom"
-	launcherVersionFallback = "1.0"
+	launcherVersionFallback = "1.0.1"
 )
 
 // Режимы доступа к файлам

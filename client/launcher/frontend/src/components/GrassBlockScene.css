@@ -1,0 +1,20 @@
+.grass-block-scene {
+  position: fixed;
+  inset: 0;
+  top: 40px;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.grass-block-scene canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .grass-block-scene {
+    display: none;
+  }
+}

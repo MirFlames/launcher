@@ -5,6 +5,7 @@ import {Quit, WindowMinimise, EventsOn} from "../wailsjs/runtime/runtime";
 import {SettingsModal} from './components/SettingsModal';
 import {NewsFeed} from './components/NewsFeed';
 import {ProgressOverlay} from './components/ProgressOverlay';
+import {GrassBlockScene} from './components/GrassBlockScene';
 
 function App() {
     const [authenticated, setAuthenticated] = useState(false);
@@ -14,6 +15,7 @@ function App() {
     const [progress, setProgress] = useState({visible: false, title: '', description: ''});
     const [authError, setAuthError] = useState('');
     const [playError, setPlayError] = useState('');
+    const [playHovered, setPlayHovered] = useState(false);
 
     function refreshAuth() {
         AuthRefreshSession()
@@ -95,7 +97,17 @@ function App() {
     return (
         <div id="App">
             <header className="titlebar">
-                <span className="titlebar-title">Launcher</span>
+                <span className="titlebar-title">
+                        <span className="titlebar-icon" aria-hidden title="Minecraft">
+                            <svg viewBox="0 0 16 16" width="18" height="18">
+                                <rect x="2" y="2" width="12" height="12" fill="#8B5A2B"/>
+                                <rect x="2" y="2" width="12" height="5" fill="#55a532"/>
+                                <rect x="4" y="4" width="2" height="2" fill="#7cb342"/>
+                                <rect x="10" y="4" width="2" height="2" fill="#7cb342"/>
+                            </svg>
+                        </span>
+                        Майнкрафт online
+                    </span>
                 <div className="titlebar-buttons">
                     <button className="titlebar-btn settings" onClick={() => setSettingsOpen(true)} title="Настройки">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -108,24 +120,51 @@ function App() {
                 </div>
             </header>
             <main className="content">
-                <div className="auth-block">
+                {authenticated && (
+                    <aside className="user-bar">
+                        <div className="user-bar-inner">
+                            <span className="user-bar-nickname">{nickname}</span>
+                            <button className="btn btn-logout" onClick={handleLogout}>Выйти</button>
+                        </div>
+                    </aside>
+                )}
+
+                <section className="hero">
                     {authenticated ? (
                         <>
-                            <p className="auth-nickname">{nickname}</p>
-                            <div className="auth-buttons">
-                                <button className="btn btn-play" onClick={handlePlay}>Играть</button>
-                                <button className="btn btn-logout" onClick={handleLogout}>Выйти</button>
-                            </div>
-                            {playError && <p className="auth-error">{playError}</p>}
+                            <button
+                                className="btn btn-play-hero"
+                                onClick={handlePlay}
+                                onMouseEnter={() => setPlayHovered(true)}
+                                onMouseLeave={() => setPlayHovered(false)}
+                                aria-label="Запустить игру"
+                            >
+                                <span className="btn-play-icon" aria-hidden>
+                                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                                </span>
+                                <span className="btn-play-text">Играть</span>
+                            </button>
+                            {playError && <p className="hero-error">{playError}</p>}
                         </>
                     ) : (
                         <>
-                            <button className="btn btn-login" onClick={handleLogin}>Войти</button>
-                            {authError && <p className="auth-error">{authError}</p>}
+                            <div className="hero-login-block">
+                                <button className="btn btn-login-hero" onClick={handleLogin}>
+                                    <span className="btn-play-icon" aria-hidden>
+                                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                                    </span>
+                                    <span className="btn-play-text">Войти через Telegram</span>
+                                </button>
+                                <p className="hero-login-hint">Сервер не хранит пароли</p>
+                            </div>
+                            {authError && <p className="hero-error">{authError}</p>}
                         </>
                     )}
-                </div>
-                <NewsFeed key={newsKey} />
+                </section>
+
+                <footer className="news-section">
+                    <NewsFeed key={newsKey} />
+                </footer>
             </main>
             <SettingsModal
                 isOpen={settingsOpen}
@@ -137,6 +176,7 @@ function App() {
                 title={progress.title}
                 description={progress.description}
             />
+            <GrassBlockScene visible={authenticated} playHovered={playHovered} />
         </div>
     )
 }

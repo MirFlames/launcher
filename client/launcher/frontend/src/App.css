@@ -1,179 +1,301 @@
 #App {
-    height: 100vh;
-    display: flex;
-    flex-direction: column;
-    text-align: center;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: #0a0e17;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  background-image: 
+    linear-gradient(rgba(16, 185, 129, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(16, 185, 129, 0.03) 1px, transparent 1px),
+    radial-gradient(ellipse 80% 50% at 50% 0%, rgba(16, 185, 129, 0.08) 0%, transparent 50%),
+    linear-gradient(180deg, #0f172a 0%, #0a0e17 100%);
+  background-size: 16px 16px, 16px 16px, 100% 100%, 100% 100%;
 }
 
-/* Кастомная панель заголовка — область перетаскивания окна */
+/* Titlebar */
 .titlebar {
-    --wails-draggable: drag;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 8px 0 12px;
-    background: rgba(27, 38, 54, 0.9);
+  --wails-draggable: drag;
+  height: 40px;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px 0 20px;
+  background: rgba(10, 14, 23, 0.95);
+  border-bottom: 1px solid var(--color-border);
+  backdrop-filter: blur(12px);
 }
 
 .titlebar-title {
-    font-size: 13px;
-    color: rgba(255, 255, 255, 0.9);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+  letter-spacing: -0.02em;
+}
+
+.titlebar-icon {
+  display: flex;
+  opacity: 0.95;
+}
+
+.titlebar-icon svg {
+  display: block;
 }
 
 .titlebar-buttons {
-    --wails-draggable: no-drag;
-    display: flex;
-    gap: 0;
+  --wails-draggable: no-drag;
+  display: flex;
+  gap: 2px;
 }
 
 .titlebar-btn {
-    width: 40px;
-    height: 32px;
-    border: none;
-    background: transparent;
-    color: rgba(255, 255, 255, 0.9);
-    font-size: 12px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: background 0.15s, color 0.15s;
+  width: 44px;
+  height: 40px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 18px;
+  font-weight: 300;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s, color 0.2s;
 }
 
 .titlebar-btn:hover {
-    background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--color-text);
 }
 
 .titlebar-btn.settings svg {
-    opacity: 0.9;
+  width: 14px;
+  height: 14px;
+  opacity: 0.9;
 }
 
 .titlebar-btn.settings:hover svg {
-    opacity: 1;
+  opacity: 1;
 }
 
 .titlebar-btn.close:hover {
-    background: #e81123;
-    color: white;
+  background: var(--color-danger);
+  color: white;
 }
 
+.titlebar-btn:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+/* Main content — flex column: user bar, hero, news */
 .content {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    padding-top: 1rem;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 0 24px 24px;
+  position: relative;
+  z-index: 1;
 }
 
-.result {
-    height: 20px;
-    line-height: 20px;
-    margin: 1.5rem auto;
+/* User bar — top-right, compact */
+.user-bar {
+  flex-shrink: 0;
+  padding: 16px 0 8px;
+  display: flex;
+  justify-content: flex-end;
 }
 
-.input-box .btn {
-    width: 60px;
-    height: 30px;
-    line-height: 30px;
-    border-radius: 3px;
-    border: none;
-    margin: 0 0 0 20px;
-    padding: 0 8px;
-    cursor: pointer;
+.user-bar-inner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: rgba(17, 24, 39, 0.25);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: var(--shadow-md);
 }
 
-.input-box .btn:hover {
-    background-image: linear-gradient(to top, #cfd9df 0%, #e2ebf0 100%);
-    color: #333333;
+.user-bar-nickname {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text);
 }
 
-.input-box .input {
-    border: none;
-    border-radius: 3px;
-    outline: none;
-    height: 30px;
-    line-height: 30px;
-    padding: 0 10px;
-    background-color: rgba(240, 240, 240, 1);
-    -webkit-font-smoothing: antialiased;
+/* Hero — main CTA, centered */
+.hero {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  min-height: 200px;
 }
 
-.input-box .input:hover {
-    border: none;
-    background-color: rgba(255, 255, 255, 1);
+/* Hero Play button — primary CTA */
+.btn-play-hero {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  min-width: 220px;
+  padding: 20px 48px;
+  font-size: 22px;
+  font-weight: 600;
+  font-family: inherit;
+  color: white;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  border: none;
+  border-radius: 14px;
+  cursor: pointer;
+  box-shadow: 0 8px 32px rgba(16, 185, 129, 0.4);
+  transition: transform 0.2s, box-shadow 0.2s;
 }
 
-.input-box .input:focus {
-    border: none;
-    background-color: rgba(255, 255, 255, 1);
+.btn-play-hero:hover {
+  transform: scale(1.03);
+  box-shadow: 0 12px 40px rgba(16, 185, 129, 0.5);
+  animation: btn-play-glow 1.5s ease-in-out infinite;
 }
 
-/* Блок авторизации */
-.auth-block {
-    margin-bottom: 1rem;
+@keyframes btn-play-glow {
+  0%, 100% { box-shadow: 0 12px 40px rgba(16, 185, 129, 0.5); }
+  50% { box-shadow: 0 14px 48px rgba(16, 185, 129, 0.6); }
 }
 
-.auth-nickname {
-    font-size: 18px;
-    font-weight: 600;
-    color: white;
-    margin: 0 0 12px;
+.btn-play-hero:active {
+  transform: scale(0.98);
 }
 
-.auth-buttons {
-    display: flex;
-    gap: 12px;
-    justify-content: center;
-    flex-wrap: wrap;
+.btn-play-hero:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.6);
+  outline-offset: 4px;
 }
 
-.btn-play {
-    background: #33cc33;
-    color: white;
-    padding: 12px 32px;
-    font-size: 16px;
-    font-weight: 600;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
+.btn-play-icon {
+  display: flex;
+  width: 32px;
+  height: 32px;
 }
 
-.btn-play:hover {
-    background: #2db82d;
+.btn-play-icon svg {
+  width: 100%;
+  height: 100%;
 }
 
-.btn-login {
-    background: #4a90d9;
-    color: white;
-    padding: 12px 32px;
-    font-size: 16px;
-    font-weight: 600;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
+.btn-play-text {
+  letter-spacing: 0.02em;
 }
 
-.btn-login:hover {
-    background: #3a7bc8;
+/* Hero Login button — same prominence when not logged in */
+.btn-login-hero {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  min-width: 260px;
+  padding: 20px 40px;
+  font-size: 18px;
+  font-weight: 600;
+  font-family: inherit;
+  color: white;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  border: none;
+  border-radius: 14px;
+  cursor: pointer;
+  box-shadow: 0 8px 32px rgba(59, 130, 246, 0.4);
+  transition: transform 0.2s, box-shadow 0.2s;
 }
 
+.btn-login-hero:hover {
+  transform: scale(1.03);
+  box-shadow: 0 12px 40px rgba(59, 130, 246, 0.5);
+}
+
+.btn-login-hero:active {
+  transform: scale(0.98);
+}
+
+.btn-login-hero:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.6);
+  outline-offset: 4px;
+}
+
+.hero-login-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.hero-login-hint {
+  font-size: 12px;
+  color: var(--color-text-dim);
+  margin: 0;
+}
+
+.hero-error {
+  color: var(--color-danger);
+  font-size: 13px;
+  margin: 0;
+  max-width: 320px;
+  text-align: center;
+  line-height: 1.4;
+}
+
+/* News section — footer, secondary */
+.news-section {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: center;
+  padding-top: 24px;
+}
+
+/* Logout — ghost button */
 .btn-logout {
-    background: rgba(255, 255, 255, 0.15);
-    color: white;
-    padding: 10px 20px;
-    font-size: 14px;
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    border-radius: 6px;
-    cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 14px;
+  color: var(--color-text-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
 }
 
 .btn-logout:hover {
-    background: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--color-text);
 }
 
-.auth-error {
-    color: #e74c3c;
-    font-size: 13px;
-    margin: 8px 0 0;
+.btn-logout:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-play-hero:hover,
+  .btn-login-hero:hover {
+    transform: none;
+    animation: none;
+  }
+  .btn-play-hero:active,
+  .btn-login-hero:active {
+    transform: none;
+  }
+}
+
