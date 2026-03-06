@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -114,7 +115,12 @@ func (a *App) PlayMinecraft() error {
 		hide := func() { runtime.WindowHide(a.ctx) }
 		show := func() {
 			runtime.EventsEmit(a.ctx, "launch-ended", nil)
+			runtime.WindowSetAlwaysOnTop(a.ctx, true)
 			runtime.WindowShow(a.ctx)
+			go func() {
+				time.Sleep(150 * time.Millisecond)
+				runtime.WindowSetAlwaysOnTop(a.ctx, false)
+			}()
 		}
 		onWaiting := func() {
 			if a.ctx != nil {
