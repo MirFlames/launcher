@@ -47,6 +47,8 @@ Loki и Prometheus подключаются автоматически при п
 1. Explore → Loki
 2. LogQL: `{container=~".*mc.*"}` или `{container=~".*backend.*"}`
 
+**Примечание:** mc-proxy не имеет label `logging=promtail` — иначе при перезапуске Promtail выдаёт флуд "No such container". `refresh_interval` увеличен до 15s.
+
 ## Важно для Windows
 
 На Windows с Docker Desktop проверьте, что Docker использует WSL2. Для cAdvisor путь `/dev/disk` может отсутствовать — при ошибках можно убрать этот volume из compose.

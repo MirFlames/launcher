@@ -1,7 +1,6 @@
 package main
 
 import (
-	"io"
 	"log"
 	"net"
 	"os"
@@ -10,8 +9,12 @@ import (
 )
 
 func main() {
-	mcBackend := getEnv("MC_BACKEND", "mc:25565")
-	voiceBackend := getEnv("VOICE_BACKEND", "mc:24454")
+	initSessionsDB()
+	initBanList()
+	initLimits()
+
+	mcBackend := getEnv("MC_BACKEND", "127.0.0.1:25567")
+	voiceBackend := getEnv("VOICE_BACKEND", "127.0.0.1:24456")
 	mcListen := getEnv("MC_LISTEN", ":25565")
 	voiceListen := getEnv("VOICE_LISTEN", ":24454")
 
@@ -60,24 +63,6 @@ func runTCPProxy(listenAddr, backendAddr string) error {
 		}
 		go handleTCPConn(client, backendAddr)
 	}
-}
-
-func handleTCPConn(client net.Conn, backendAddr string) {
-	defer client.Close()
-
-	backend, err := net.DialTimeout("tcp", backendAddr, 10*time.Second)
-	if err != nil {
-		log.Printf("[MC] dial %s: %v", backendAddr, err)
-		return
-	}
-	defer backend.Close()
-
-	log.Printf("[MC] %s <-> %s", client.RemoteAddr(), backendAddr)
-
-	go io.Copy(backend, client)
-	io.Copy(client, backend)
-	client.Close()
-	backend.Close()
 }
 
 func runUDPProxy(listenAddr, backendAddr string) error {

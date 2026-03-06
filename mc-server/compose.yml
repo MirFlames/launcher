@@ -8,6 +8,9 @@ services:
       logging: "promtail"
     tty: true
     stdin_open: true
+    ports:
+      - "25567:25565"
+      - "24456:24454/udp"
     environment:
       EULA: "TRUE"
       OVERRIDE_SERVER_PROPERTIES: "false"

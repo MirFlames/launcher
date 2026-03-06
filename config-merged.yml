@@ -1,0 +1,360 @@
+﻿name: launcher
+services:
+  backend:
+    build:
+      context: C:\Users\MirFl\Documents\launcher\backend
+      dockerfile: Dockerfile
+    depends_on:
+      mc:
+        condition: service_started
+        required: true
+    environment:
+      API_BASE_URL: http://62.182.138.124:58293
+      AUTH_API_URL: http://backend:8080
+      BASE_URL: http://62.182.138.124
+      CODESIGN_PASSWORD: j9#m!lkqs2381vo
+      CODESIGN_PFX: '%USERPROFILE%\codesign.pfx'
+      FILES_PATH: /app/files
+      PORT: "58293"
+      SERVER_HOST: mc
+      SERVER_PORT: "25565"
+      TELEGRAM_BOT_TOKEN: 8623264086:AAGdiUFL0Tl9qaKuw908hS0e5x1GjiDO1u0
+      TELEGRAM_BOT_USERNAME: fam_mc_bot
+      TELEGRAM_REQUIRED_CHANNEL: '@mc_fam'
+    labels:
+      logging: promtail
+    networks:
+      default: null
+    ports:
+      - mode: ingress
+        target: 8080
+        published: "58293"
+        protocol: tcp
+    restart: unless-stopped
+    volumes:
+      - type: bind
+        source: C:\Users\MirFl\Documents\launcher\backend\data
+        target: /data
+        bind:
+          create_host_path: true
+      - type: bind
+        source: C:\Users\MirFl\Documents\launcher\backend\files
+        target: /app/files
+        bind:
+          create_host_path: true
+    working_dir: /data
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.47.2
+    networks:
+      default: null
+    ports:
+      - mode: ingress
+        target: 8080
+        published: "8180"
+        protocol: tcp
+    privileged: true
+    restart: unless-stopped
+    volumes:
+      - type: bind
+        source: /
+        target: /rootfs
+        read_only: true
+        bind:
+          create_host_path: true
+      - type: bind
+        source: /var/run
+        target: /var/run
+        read_only: true
+        bind:
+          create_host_path: true
+      - type: bind
+        source: /sys
+        target: /sys
+        read_only: true
+        bind:
+          create_host_path: true
+      - type: bind
+        source: /var/lib/docker/
+        target: /var/lib/docker
+        read_only: true
+        bind:
+          create_host_path: true
+      - type: bind
+        source: /dev/disk/
+        target: /dev/disk
+        read_only: true
+        bind:
+          create_host_path: true
+  grafana:
+    depends_on:
+      loki:
+        condition: service_started
+        required: true
+      prometheus:
+        condition: service_started
+        required: true
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SERVER_HTTP_PORT: "3000"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    image: grafana/grafana:11.4.0
+    networks:
+      default: null
+    ports:
+      - mode: ingress
+        target: 3000
+        published: "3000"
+        protocol: tcp
+    restart: unless-stopped
+    volumes:
+      - type: volume
+        source: grafana-data
+        target: /var/lib/grafana
+        volume: {}
+      - type: bind
+        source: C:\Users\MirFl\Documents\launcher\loki\grafana\provisioning
+        target: /etc/grafana/provisioning
+        read_only: true
+        bind:
+          create_host_path: true
+  loki:
+    command:
+      - -config.file=/etc/loki/local-config.yaml
+    image: grafana/loki:3.6.0
+    networks:
+      default: null
+    ports:
+      - mode: ingress
+        target: 3100
+        published: "3100"
+        protocol: tcp
+    restart: unless-stopped
+    volumes:
+      - type: bind
+        source: C:\Users\MirFl\Documents\launcher\loki\loki-config.yaml
+        target: /etc/loki/local-config.yaml
+        bind:
+          create_host_path: true
+      - type: volume
+        source: loki-data
+        target: /loki
+        volume: {}
+  mc:
+    environment:
+      ALLOW_NETHER: "false"
+      BUG_REPORT_LINK: https://github.com/MirFlames/launcher/issues/new
+      DIFFICULTY: "3"
+      ENFORCE_SECURE_PROFILE: "false"
+      EULA: "TRUE"
+      FABRIC_LAUNCHER_VERSION: 1.1.1
+      FABRIC_LOADER_VERSION: 0.18.4
+      JVM_XX_OPTS: -XX:+ExitOnOutOfMemoryError
+      LEVEL: world2
+      LOG_TIMESTAMP: "true"
+      MAX_PLAYERS: "30"
+      MAX_WORLD_SIZE: "29999983"
+      MEMORY: 8192M
+      MODRINTH_ALLOWED_VERSION_TYPE: beta
+      MODRINTH_PROJECTS: |-
+        sound-physics-remastered:fabric-1.21.11-1.5.1
+        ledger
+        player-animation-library
+        balm
+        better-combat
+        blackwolf-library
+        chunky
+        cloth-config
+        clumps
+        collective
+        emotecraft
+        explorations
+        fabric-api
+        fabric-language-kotlin
+        ferrite-core
+        filament
+        first-join-message
+        forge-config-api-port
+        forgiving-void
+        lithium
+        more-beautiful-walls
+        polymer
+        puzzles-lib
+        bl4cks-sit
+        starter-kit
+        tsa-decorations
+        voice-chat-interaction
+        simple-voice-chat
+        weaponmaster
+      MOTD: \u00A76\u00A7l[ \u00A7b\u00A7lt.me/mc_fam \u00A76\u00A7l] \u00A7e\u00A7l╨Т╤Б╤П ╨╕╨╜╤Д╨╛╤А╨╝╨░╤Ж╨╕╤П ╤В╤Г╤В!
+      ONLINE_MODE: "false"
+      OVERRIDE_SERVER_PROPERTIES: "false"
+      TYPE: FABRIC
+      TZ: Europe/Moscow
+      USE_MEOWICE_FLAGS: "true"
+      VERSION: 1.21.11
+    image: itzg/minecraft-server:latest
+    labels:
+      logging: promtail
+    networks:
+      default: null
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+    volumes:
+      - type: bind
+        source: C:\Users\MirFl\Documents\launcher\mc-server\data
+        target: /data
+        bind:
+          create_host_path: true
+  mc-monitor:
+    command:
+      - export-for-prometheus
+    depends_on:
+      mc:
+        condition: service_started
+        required: true
+    environment:
+      EXPORT_PORT: "8080"
+      EXPORT_SERVERS: mc
+    image: itzg/mc-monitor:latest
+    networks:
+      default: null
+    restart: unless-stopped
+  mc-proxy:
+    build:
+      context: C:\Users\MirFl\Documents\launcher\mc-proxy
+      dockerfile: Dockerfile
+    depends_on:
+      backend:
+        condition: service_started
+        required: true
+      mc:
+        condition: service_started
+        required: true
+    environment:
+      BAN_FILE: /proxy-data/bans.txt
+      MC_BACKEND: mc:25565
+      MC_LISTEN: :25565
+      PROXY_PROTOCOL: "1"
+      SESSIONS_DB_PATH: /data/sessions.db
+      VOICE_BACKEND: mc:24454
+      VOICE_LISTEN: :24454
+    networks:
+      default: null
+    ports:
+      - mode: ingress
+        target: 25565
+        published: "25565"
+        protocol: tcp
+      - mode: ingress
+        target: 24454
+        published: "24454"
+        protocol: udp
+    restart: unless-stopped
+    volumes:
+      - type: bind
+        source: C:\Users\MirFl\Documents\launcher\backend\data
+        target: /data
+        read_only: true
+        bind:
+          create_host_path: true
+      - type: bind
+        source: C:\Users\MirFl\Documents\launcher\mc-proxy\data
+        target: /proxy-data
+        bind:
+          create_host_path: true
+  nginx:
+    depends_on:
+      mc-proxy:
+        condition: service_started
+        required: true
+    image: nginx:alpine
+    networks:
+      default: null
+    ports:
+      - mode: ingress
+        target: 25565
+        published: "25565"
+        protocol: tcp
+      - mode: ingress
+        target: 24454
+        published: "24454"
+        protocol: udp
+    restart: unless-stopped
+    volumes:
+      - type: bind
+        source: C:\Users\MirFl\Documents\launcher\mc-proxy\nginx\nginx.conf
+        target: /etc/nginx/nginx.conf
+        read_only: true
+        bind:
+          create_host_path: true
+      - type: bind
+        source: C:\Users\MirFl\Documents\launcher\mc-proxy\nginx\stream.conf
+        target: /etc/nginx/stream.conf
+        read_only: true
+        bind:
+          create_host_path: true
+  prometheus:
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    image: prom/prometheus:v3.6.0
+    networks:
+      default: null
+    ports:
+      - mode: ingress
+        target: 9090
+        published: "9090"
+        protocol: tcp
+    restart: unless-stopped
+    volumes:
+      - type: bind
+        source: C:\Users\MirFl\Documents\launcher\loki\prometheus.yml
+        target: /etc/prometheus/prometheus.yml
+        bind:
+          create_host_path: true
+      - type: volume
+        source: prometheus-data
+        target: /prometheus
+        volume: {}
+  promtail:
+    command:
+      - -config.file=/etc/promtail/config.yaml
+    depends_on:
+      loki:
+        condition: service_started
+        required: true
+    image: grafana/promtail:3.6.0
+    networks:
+      default: null
+    restart: unless-stopped
+    volumes:
+      - type: bind
+        source: C:\Users\MirFl\Documents\launcher\loki\promtail-config.yaml
+        target: /etc/promtail/config.yaml
+        bind:
+          create_host_path: true
+      - type: bind
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
+        read_only: true
+        bind:
+          create_host_path: true
+      - type: bind
+        source: /var/lib/docker
+        target: /var/lib/docker
+        read_only: true
+        bind:
+          create_host_path: true
+networks:
+  default:
+    name: launcher_default
+volumes:
+  grafana-data:
+    name: launcher_grafana-data
+  loki-data:
+    name: launcher_loki-data
+  prometheus-data:
+    name: launcher_prometheus-data

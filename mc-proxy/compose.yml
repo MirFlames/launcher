@@ -1,20 +1,28 @@
 # mc-proxy: прокси для Minecraft (TCP) и Simple Voice Chat (UDP)
-# Клиенты подключаются к mc-proxy, прокси пересылает трафик на mc-сервер.
-# Использование: когда mc-сервер в Docker-сети, а наружу нужно выставить один хост.
+# Авторизация на прокси (read-only копия sessions.db с backend).
+# Клиенты подключаются к mc-proxy, прокси проверяет сессию и пересылает на mc-сервер.
 
 services:
   mc-proxy:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     restart: unless-stopped
     ports:
       - "25565:25565"
       - "24454:24454/udp"
     environment:
-      MC_BACKEND: "mc:25565"
-      VOICE_BACKEND: "mc:24454"
+      MC_BACKEND: "192.168.1.12:25567"
+      VOICE_BACKEND: "192.168.1.12:24456"
       MC_LISTEN: ":25565"
       VOICE_LISTEN: ":24454"
+      SESSIONS_DB_PATH: "/data/sessions.db"
+      BAN_FILE: "/proxy-data/bans.txt"
+    volumes:
+      - ../backend/data:/data:ro
+      - ./data:/proxy-data
     depends_on:
       - mc
+      - backend
     networks:
       - default
