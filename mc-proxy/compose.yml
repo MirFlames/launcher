@@ -1,6 +1,6 @@
 # mc-proxy: прокси для Minecraft (TCP) и Simple Voice Chat (UDP)
-# Авторизация на прокси (read-only копия sessions.db с backend).
-# Клиенты подключаются к mc-proxy, прокси проверяет сессию и пересылает на mc-сервер.
+# Репликация сессий по HTTP с backend (mc-proxy может быть на отдельном VPS).
+# SESSIONS_API_URL — полный URL backend, например https://launcher.example.com/api/sessions/export
 
 services:
   mc-proxy:
@@ -16,10 +16,11 @@ services:
       VOICE_BACKEND: "192.168.1.12:24456"
       MC_LISTEN: ":25565"
       VOICE_LISTEN: ":24454"
-      SESSIONS_DB_PATH: "/data/sessions.db"
+      # Репликация сессий с backend (разные хосты)
+      SESSIONS_API_URL: "http://backend:8080/api/sessions/export"
+      SESSIONS_API_TOKEN: ${SESSIONS_EXPORT_TOKEN}
       BAN_FILE: "/proxy-data/bans.txt"
     volumes:
-      - ../backend/data:/data:ro
       - ./data:/proxy-data
     depends_on:
       - mc

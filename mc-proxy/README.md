@@ -4,10 +4,10 @@
 
 ## Назначение
 
-- **Minecraft (25565/TCP)** — пересылка с проверкой авторизации (read-only копия sessions.db)
+- **Minecraft (25565/TCP)** — пересылка с проверкой авторизации (репликация сессий по HTTP с backend)
 - **Simple Voice Chat (24454/UDP)** — пересылка UDP-пакетов с поддержкой нескольких клиентов
 
-Авторизация обязательна: mc-proxy не запускается без sessions.db. При подключении парсится Login Start (nickname, session_uuid) через [go-mc](https://github.com/Tnze/go-mc), проверка по sessions.db. Мод **launcher_auth** на mc-сервере при использовании прокси можно удалить.
+Авторизация обязательна: mc-proxy не запускается без сессий. При подключении парсится Login Start (nickname, session_uuid) через [go-mc](https://github.com/Tnze/go-mc), проверка по реплике с backend. mc-proxy может быть на отдельном VPS — сессии загружаются по HTTP (GET /api/sessions/export) каждые 30 сек. Мод **launcher_auth** на mc-сервере при использовании прокси можно удалить.
 
 Полезно, когда:
 - mc-сервер в Docker-сети, наружу нужен один хост
@@ -22,7 +22,8 @@
 | `VOICE_BACKEND`  | `mc:24454`   | Адрес Simple Voice Chat          |
 | `MC_LISTEN`      | `:25565`     | Адрес прослушивания TCP          |
 | `VOICE_LISTEN`   | `:24454`     | Адрес прослушивания UDP          |
-| `SESSIONS_DB_PATH` | `sessions.db` | Путь к SQLite (read-only). При локальном запуске пробует `../backend/data/sessions.db` |
+| `SESSIONS_API_URL` | — | URL backend для репликации, например `https://launcher.example.com/api/sessions/export` |
+| `SESSIONS_API_TOKEN` | — | Токен (тот же что SESSIONS_EXPORT_TOKEN в backend). Заголовок Authorization: Bearer |
 | `BAN_IP`           | —             | Начальный бан: IP через запятую |
 | `BAN_FILE`         | `bans.txt`    | Файл для хранения банов         |
 | `MC_MAX_CONNECTIONS` | `200`       | Глобальный лимит одновременных соединений |
@@ -58,6 +59,19 @@ docker compose -f docker-compose.yml -f docker-compose.proxy.yml up -d
 ```bash
 docker compose up -d
 ```
+
+## mc-proxy на отдельном VPS
+
+Backend и mc-proxy могут быть на разных хостах. На VPS с mc-proxy задайте:
+
+```
+SESSIONS_API_URL=https://your-backend.example.com/api/sessions/export
+SESSIONS_API_TOKEN=<секрет из SESSIONS_EXPORT_TOKEN backend>
+MC_BACKEND=<IP:port Minecraft-сервера>
+VOICE_BACKEND=<IP:port Simple Voice Chat>
+```
+
+Backend должен быть доступен по HTTPS (или HTTP в доверенной сети). Токен — один и тот же в backend и mc-proxy.
 
 ## Конфигурация лаунчера
 

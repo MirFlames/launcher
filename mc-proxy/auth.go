@@ -1,60 +1,107 @@
 package main
 
 import (
-	"database/sql"
+	"encoding/json"
+	"io"
 	"log"
-	"os"
+	"net/http"
 	"sync"
-
-	_ "modernc.org/sqlite"
+	"time"
 )
 
-const sessionsDBFile = "sessions.db"
+const sessionsSyncInterval = 30 * time.Second
 
 var (
-	sessionsDB   *sql.DB
-	sessionsDBMu sync.RWMutex
+	sessionsMu   sync.RWMutex
+	sessionsMap  map[string]string // session_uuid -> nickname
 )
 
+type sessionExportEntry struct {
+	Nickname    string `json:"nickname"`
+	SessionUUID string `json:"session_uuid"`
+}
+
 func initSessionsDB() {
-	path := getEnv("SESSIONS_DB_PATH", sessionsDBFile)
-	if _, err := os.Stat(path); err != nil {
-		if path == sessionsDBFile {
-			for _, fallback := range []string{"../backend/data/sessions.db", "backend/data/sessions.db"} {
-				if _, err := os.Stat(fallback); err == nil {
-					path = fallback
-					break
-				}
-			}
+	apiURL := getEnv("SESSIONS_API_URL", "")
+	token := getEnv("SESSIONS_API_TOKEN", "")
+
+	if apiURL == "" || token == "" {
+		log.Fatalf("[Auth] SESSIONS_API_URL и SESSIONS_API_TOKEN обязательны для репликации сессий (mc-proxy на отдельном хосте)")
+	}
+
+	sessionsMap = make(map[string]string)
+	if err := fetchSessions(apiURL, token); err != nil {
+		log.Fatalf("[Auth] Не удалось загрузить сессии при старте: %v", err)
+	}
+	log.Printf("[Auth] Sessions: репликация с %s (%d сессий)", apiURL, len(sessionsMap))
+
+	go syncSessions(apiURL, token)
+}
+
+func fetchSessions(apiURL, token string) error {
+	req, err := http.NewRequest(http.MethodGet, apiURL, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("X-Sessions-Token", token)
+
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return &httpError{status: resp.StatusCode, msg: resp.Status + ": " + string(body)}
+	}
+
+	var entries []sessionExportEntry
+	if err := json.NewDecoder(resp.Body).Decode(&entries); err != nil {
+		return err
+	}
+
+	newMap := make(map[string]string, len(entries))
+	for _, e := range entries {
+		if e.SessionUUID != "" && e.Nickname != "" {
+			newMap[e.SessionUUID] = e.Nickname
 		}
 	}
-	if _, err := os.Stat(path); err != nil {
-		log.Fatalf("[Auth] Sessions DB не найден: %s — mc-proxy не запускается без сессий", path)
+
+	sessionsMu.Lock()
+	sessionsMap = newMap
+	sessionsMu.Unlock()
+	return nil
+}
+
+type httpError struct {
+	status int
+	msg    string
+}
+
+func (e *httpError) Error() string {
+	return e.msg
+}
+
+func syncSessions(apiURL, token string) {
+	ticker := time.NewTicker(sessionsSyncInterval)
+	defer ticker.Stop()
+	for range ticker.C {
+		if err := fetchSessions(apiURL, token); err != nil {
+			log.Printf("[Auth] sync sessions: %v", err)
+			continue
+		}
 	}
-	db, err := sql.Open("sqlite", "file:"+path+"?mode=ro")
-	if err != nil {
-		log.Fatalf("[Auth] Не удалось открыть sessions DB (read-only): %v", err)
-	}
-	sessionsDB = db
-	log.Printf("[Auth] Sessions DB (read-only): %s", path)
 }
 
 func sessionVerify(nickname, sessionUUID string) bool {
 	if nickname == "" || sessionUUID == "" {
 		return false
 	}
-	sessionsDBMu.RLock()
-	defer sessionsDBMu.RUnlock()
-	if sessionsDB == nil {
-		return false
-	}
-	var dbNickname string
-	err := sessionsDB.QueryRow(
-		`SELECT nickname FROM sessions WHERE session_uuid = ?`,
-		sessionUUID,
-	).Scan(&dbNickname)
-	if err == sql.ErrNoRows || err != nil {
-		return false
-	}
-	return dbNickname == nickname
+	sessionsMu.RLock()
+	dbNickname, ok := sessionsMap[sessionUUID]
+	sessionsMu.RUnlock()
+	return ok && dbNickname == nickname
 }

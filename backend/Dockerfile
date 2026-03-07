@@ -1,9 +1,16 @@
-# Бинарник собирается на хосте (build.ps1), в образ копируется готовый файл
+# Multi-stage: сборка внутри Docker — всегда актуальный код, без зависимости от compose.ps1
+FROM golang:1.25-alpine AS builder
+WORKDIR /build
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -o launcher-backend .
+
 FROM alpine:3.21
 RUN apk add --no-cache ca-certificates
 
 WORKDIR /app
-COPY launcher-backend /app/launcher-backend
+COPY --from=builder /build/launcher-backend /app/launcher-backend
 
 # Data directory for config.json, sessions.db
 RUN mkdir -p /data /app/files

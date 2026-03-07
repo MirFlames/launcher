@@ -206,6 +206,7 @@ func main() {
 	mux.HandleFunc("/api/auth/complete", cors.wrap(handleAuthComplete))
 	mux.HandleFunc("/api/auth/verify", cors.wrap(handleAuthVerify))
 	mux.HandleFunc("/api/auth/invalidate", cors.wrap(handleAuthInvalidate))
+	mux.HandleFunc("/api/sessions/export", cors.wrap(handleSessionsExport))
 	mux.HandleFunc("/api/news", cors.wrap(handleNews))
 	mux.HandleFunc("/files/", cors.wrap(handleFileDownload))
 	mux.Handle("/metrics", metricsHandler())
@@ -736,4 +737,35 @@ func handleAuthInvalidate(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
+// handleSessionsExport обрабатывает GET /api/sessions/export для репликации в mc-proxy на другом хосте.
+// Требует заголовок Authorization: Bearer <token> или X-Sessions-Token: <token>.
+// SESSIONS_EXPORT_TOKEN задаётся в env backend и mc-proxy.
+func handleSessionsExport(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Метод не разрешен", http.StatusMethodNotAllowed)
+		return
+	}
+
+	token := os.Getenv("SESSIONS_EXPORT_TOKEN")
+	if token == "" {
+		http.Error(w, "Экспорт сессий не настроен", http.StatusServiceUnavailable)
+		return
+	}
+
+	provided := r.Header.Get("Authorization")
+	if strings.HasPrefix(provided, "Bearer ") {
+		provided = strings.TrimPrefix(provided, "Bearer ")
+	} else {
+		provided = r.Header.Get("X-Sessions-Token")
+	}
+	if provided != token {
+		http.Error(w, "Неверный токен", http.StatusUnauthorized)
+		return
+	}
+
+	sessions := sessionExportForProxy()
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	json.NewEncoder(w).Encode(sessions)
 }

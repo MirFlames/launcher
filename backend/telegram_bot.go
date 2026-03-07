@@ -498,6 +498,11 @@ func startNotificationWorker(bot *tgbotapi.BotAPI) {
 		if !status.Online || status.Count == 0 {
 			continue
 		}
+		// Players.Sample может быть пустым (ограничение vanilla — макс 12 игроков, или сервер не отдаёт список).
+		// Без списка имён нельзя определить, кто уже на сервере — не рассылаем уведомления, чтобы не флудить.
+		if len(status.PlayerNames) == 0 {
+			continue
+		}
 
 		users := sessionGetAllForNotifications()
 		playerNamesSet := make(map[string]bool)

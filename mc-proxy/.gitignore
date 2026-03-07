@@ -1,0 +1,24 @@
+# Binaries
+mc-proxy
+mc-proxy.exe
+*.exe
+
+# Runtime data
+data/
+
+# Local env
+.env
+.env.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

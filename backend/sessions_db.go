@@ -94,6 +94,32 @@ func sessionCount() int {
 	return n
 }
 
+// SessionExportEntry — запись для экспорта в mc-proxy (минимальный набор для верификации)
+type SessionExportEntry struct {
+	Nickname    string `json:"nickname"`
+	SessionUUID string `json:"session_uuid"`
+}
+
+// sessionExportForProxy возвращает все сессии для репликации в mc-proxy
+func sessionExportForProxy() []SessionExportEntry {
+	sessionsDBMu.RLock()
+	defer sessionsDBMu.RUnlock()
+	rows, err := sessionsDB.Query(`SELECT nickname, session_uuid FROM sessions WHERE session_uuid != '' AND nickname != ''`)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+	var result []SessionExportEntry
+	for rows.Next() {
+		var e SessionExportEntry
+		if err := rows.Scan(&e.Nickname, &e.SessionUUID); err != nil {
+			continue
+		}
+		result = append(result, e)
+	}
+	return result
+}
+
 func sessionGetByUUID(sessionUUID string) (ValidSessionEntry, bool) {
 	sessionsDBMu.RLock()
 	defer sessionsDBMu.RUnlock()
@@ -247,5 +273,13 @@ func sessionUpdateLastNotified(telegramID int64) {
 	}
 	sessionsDBMu.Lock()
 	defer sessionsDBMu.Unlock()
-	sessionsDB.Exec(`UPDATE sessions SET last_notified_at = ? WHERE telegram_id = ?`, time.Now().Unix(), telegramID)
+	res, err := sessionsDB.Exec(`UPDATE sessions SET last_notified_at = ? WHERE telegram_id = ?`, time.Now().Unix(), telegramID)
+	if err != nil {
+		log.Printf("[Sessions] sessionUpdateLastNotified FAILED telegram_id=%d: %v", telegramID, err)
+		return
+	}
+	rows, _ := res.RowsAffected()
+	if rows == 0 {
+		log.Printf("[Sessions] sessionUpdateLastNotified: no rows updated for telegram_id=%d (session may not exist)", telegramID)
+	}
 }
