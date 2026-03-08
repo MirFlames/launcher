@@ -24,7 +24,6 @@ services:
       MOTD: "\\u00A76\\u00A7l[ \\u00A7b\\u00A7lt.me/mc_fam \\u00A76\\u00A7l]
         \\u00A7e\\u00A7lВся информация тут!"
       ONLINE_MODE: "false"
-      USE_MEOWICE_FLAGS: "true"
       TZ: "Europe/Moscow"
       DIFFICULTY: "3"
       ALLOW_NETHER: "false"
@@ -32,6 +31,7 @@ services:
       MAX_WORLD_SIZE: "29999983"
       MODRINTH_PROJECTS: |-
         sound-physics-remastered:fabric-1.21.11-1.5.1
+        distanthorizons
         no-chat-reports
         ledger
         player-animation-library
@@ -64,10 +64,9 @@ services:
       MODRINTH_ALLOWED_VERSION_TYPE: "beta"
       ENFORCE_SECURE_PROFILE: "false"
       BUG_REPORT_LINK: "https://github.com/MirFlames/launcher/issues/new"
-      JVM_XX_OPTS: "-XX:+ExitOnOutOfMemoryError"
-      JVM_DD_OPTS: "log4j.configurationFile=/data/log4j2.xml"
+      JVM_XX_OPTS: "-XX:+ExitOnOutOfMemoryError -Xms5G -Xmx5G -XX:+UnlockExperimentalVMOptions -XX:+UseZGC -XX:+DisableExplicitGC -XX:+AlwaysPreTouch -XX:+PerfDisableSharedMem -XX:-ZUncommit -XX:+ParallelRefProcEnabled"
       LOG_TIMESTAMP: "true"
-      ENABLE_JMX: "true"
+      ENABLE_JMX: "false"
       JMX_HOST: "127.0.0.1"
       JMX_PORT: "7091"
     volumes:
