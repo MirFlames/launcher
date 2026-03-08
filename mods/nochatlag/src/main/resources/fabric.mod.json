@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "nochatlag",
+  "version": "${version}",
+  "name": "NoChatLag",
+  "description": "Fixes lag spikes caused by chat by checking the blocklist on a different thread (Mojira WEB-5587).",
+  "authors": ["NoahvdAa", "Launcher"],
+  "contact": {},
+  "license": "MIT",
+  "environment": "client",
+  "mixins": ["nochatlag.mixins.json"],
+  "depends": {
+    "fabricloader": ">=0.18.0",
+    "minecraft": "~1.21.11",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}

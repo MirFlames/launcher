@@ -11,6 +11,7 @@ services:
     ports:
       - "25567:25565"
       - "24456:24454/udp"
+      - "7091:7091"
     environment:
       EULA: "TRUE"
       OVERRIDE_SERVER_PROPERTIES: "false"
@@ -31,6 +32,7 @@ services:
       MAX_WORLD_SIZE: "29999983"
       MODRINTH_PROJECTS: |-
         sound-physics-remastered:fabric-1.21.11-1.5.1
+        no-chat-reports
         ledger
         player-animation-library
         balm
@@ -63,6 +65,10 @@ services:
       ENFORCE_SECURE_PROFILE: "false"
       BUG_REPORT_LINK: "https://github.com/MirFlames/launcher/issues/new"
       JVM_XX_OPTS: "-XX:+ExitOnOutOfMemoryError"
+      JVM_DD_OPTS: "log4j.configurationFile=/data/log4j2.xml"
       LOG_TIMESTAMP: "true"
+      ENABLE_JMX: "true"
+      JMX_HOST: "127.0.0.1"
+      JMX_PORT: "7091"
     volumes:
       - "./data:/data"
