@@ -28,10 +28,6 @@ func handleTCPConn(client net.Conn, backendAddr string) {
 	cl := logConnStart(client.RemoteAddr())
 	cl.log("CONNECT", "")
 
-	if isBanned(ip) {
-		cl.logReject("BANNED", "ip already in ban list")
-		return
-	}
 	if !rateLimitAllow(ip) {
 		cl.logReject("RATE_LIMIT", "too many connection attempts")
 		return
@@ -56,6 +52,37 @@ func handleTCPConn(client net.Conn, backendAddr string) {
 		cl.logSuspicious("HANDSHAKE_PARSE_ERROR", "err="+err.Error())
 		banIP(ip)
 		log.Printf("[MC] BAN ip=%s reason=handshake_parse_error", ip)
+		return
+	}
+
+	if isBanned(ip) {
+		cl.logReject("BANNED", "ip already in ban list")
+		if nextState == handshakeStateLogin {
+			disconnectPk := buildLoginDisconnectPacket(MsgBanned)
+			_ = mcConn.WritePacket(disconnectPk)
+		} else if nextState == handshakeStateStatus {
+			client.SetReadDeadline(time.Now().Add(5 * time.Second))
+			var statusReq pk.Packet
+			if err := mcConn.ReadPacket(&statusReq); err != nil {
+				return
+			}
+			client.SetReadDeadline(time.Time{})
+			statusResp := buildStatusResponseJSON(MsgBanned)
+			respPk := pk.Marshal(packetid.ClientboundStatusStatusResponse, pk.String(statusResp))
+			_ = mcConn.WritePacket(respPk)
+			client.SetReadDeadline(time.Now().Add(5 * time.Second))
+			var pingReq pk.Packet
+			if err := mcConn.ReadPacket(&pingReq); err != nil {
+				return
+			}
+			client.SetReadDeadline(time.Time{})
+			var payload pk.Long
+			if err := pingReq.Scan(&payload); err != nil {
+				return
+			}
+			pongPk := pk.Marshal(packetid.ClientboundStatusPongResponse, payload)
+			_ = mcConn.WritePacket(pongPk)
+		}
 		return
 	}
 
