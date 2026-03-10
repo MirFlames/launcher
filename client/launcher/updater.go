@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"syscall"
 )
 
 // LauncherUpdateManifest описывает формат JSON-манифеста обновления,
@@ -320,7 +321,9 @@ endlocal
 		}
 		logInfo("update", "bat-скрипт обновления записан: %s", scriptPath)
 
-		cmd := exec.Command("cmd.exe", "/C", "start", "/MIN", scriptPath) // #nosec G204 — управляемые пути
+		cmd := exec.Command("cmd.exe", "/C", scriptPath) // #nosec G204 — управляемые пути
+		// Скрываем окно cmd, чтобы пользователь не видел вспомогательный процесс.
+		cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 		cmd.Env = append(os.Environ(),
 			"LAUNCHER_OLD="+currentExe,
 			"LAUNCHER_NEW="+newPath,

@@ -122,5 +122,34 @@
 
 .update-modal-footer .btn {
     min-width: 120px;
+    padding: 10px 20px;
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-family: inherit;
+}
+
+.update-modal-footer .btn-secondary {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--color-text-muted);
+    border: 1px solid var(--color-border);
+}
+
+.update-modal-footer .btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--color-text);
+}
+
+.update-modal-footer .btn-primary {
+    background: linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-hover) 100%);
+    color: white;
+}
+
+.update-modal-footer .btn-primary:hover:not(:disabled) {
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);
+}
+
+.update-modal-footer .btn-primary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
 }
 
