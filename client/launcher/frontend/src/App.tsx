@@ -21,6 +21,7 @@ function App() {
     const [updateVisible, setUpdateVisible] = useState(false);
     const [updateInProgress, setUpdateInProgress] = useState(false);
     const [updateError, setUpdateError] = useState('');
+    const [updateCheckDone, setUpdateCheckDone] = useState(false);
 
     function refreshAuth() {
         AuthRefreshSession()
@@ -43,6 +44,7 @@ function App() {
         const w = window as any;
         const api = w?.go?.main?.App;
         if (!api || typeof api.CheckLauncherUpdate !== 'function') {
+            setUpdateCheckDone(true);
             return;
         }
         api.CheckLauncherUpdate()
@@ -51,9 +53,11 @@ function App() {
                     setUpdateInfo(info);
                     setUpdateVisible(true);
                 }
+                setUpdateCheckDone(true);
             })
             .catch(() => {
                 // Тихо игнорируем ошибки проверки обновления
+                setUpdateCheckDone(true);
             });
     }, []);
 
@@ -190,6 +194,7 @@ function App() {
                                 onMouseEnter={() => setPlayHovered(true)}
                                 onMouseLeave={() => setPlayHovered(false)}
                                 aria-label="Запустить игру"
+                                disabled={!updateCheckDone || (updateInfo != null && updateInfo.mandatory)}
                             >
                                 <span className="btn-play-icon" aria-hidden>
                                     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
