@@ -18,6 +18,8 @@ export function CheckLauncherUpdate():Promise<main.LauncherUpdateInfo>;
 
 export function GetConfig():Promise<main.Config>;
 
+export function GetLauncherVersion():Promise<string>;
+
 export function GetNewsFeed():Promise<main.NewsFeedResponse>;
 
 export function Greet(arg1:string):Promise<string>;

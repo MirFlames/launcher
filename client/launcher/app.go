@@ -143,3 +143,8 @@ func (a *App) GetNewsFeed() (*NewsFeedResponse, error) {
 	return fetchNewsFeed(base, session)
 }
 
+// GetLauncherVersion возвращает текущую версию лаунчера для отображения в UI.
+func (a *App) GetLauncherVersion() string {
+	return LauncherVersion
+}
+

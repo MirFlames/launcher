@@ -1,5 +1,5 @@
 import {useState, useEffect} from 'react';
-import {GetConfig, SaveConfig} from '../../wailsjs/go/main/App';
+import {GetConfig, GetLauncherVersion, SaveConfig} from '../../wailsjs/go/main/App';
 import {main} from '../../wailsjs/go/models';
 import './SettingsModal.css';
 
@@ -14,15 +14,21 @@ export function SettingsModal({isOpen, onClose, onSaved}: SettingsModalProps) {
     const [syncClientSettings, setSyncClientSettings] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
+    const [launcherVersion, setLauncherVersion] = useState<string>('');
 
     useEffect(() => {
         if (isOpen) {
-            GetConfig().then((cfg) => {
-                if (cfg) {
-                    setLoadedConfig(cfg);
-                    setSyncClientSettings(cfg.sync_client_settings ?? true);
-                }
-            }).catch(() => {});
+            GetConfig()
+                .then((cfg) => {
+                    if (cfg) {
+                        setLoadedConfig(cfg);
+                        setSyncClientSettings(cfg.sync_client_settings ?? true);
+                    }
+                })
+                .catch(() => {});
+            GetLauncherVersion()
+                .then((v) => setLauncherVersion(v || ''))
+                .catch(() => setLauncherVersion(''));
         }
     }, [isOpen]);
 
@@ -65,6 +71,12 @@ export function SettingsModal({isOpen, onClose, onSaved}: SettingsModalProps) {
                     </p>
                     {error && <p className="modal-error">{error}</p>}
                 </div>
+                {launcherVersion && (
+                    <div className="modal-version-row">
+                        <span className="modal-version-label">Версия лаунчера</span>
+                        <span className="modal-version-value">{launcherVersion}</span>
+                    </div>
+                )}
                 <div className="modal-footer">
                     <button className="btn btn-secondary" onClick={onClose}>Отмена</button>
                     <button className="btn btn-primary" onClick={handleSave} disabled={saving}>

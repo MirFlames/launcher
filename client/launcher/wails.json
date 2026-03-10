@@ -16,5 +16,8 @@
     "productVersion": "1.0.1",
     "copyright": "Copyright © 2026 Дмитрий Мирошников",
     "comments": "Minecraft Launcher for FamMC server"
+  },
+  "windows": {
+    "icon": "frontend/src/assets/images/logo-universal.png"
   }
 }

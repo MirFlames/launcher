@@ -134,6 +134,27 @@
   margin: 12px 0 0;
 }
 
+.modal-version-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 0 24px 12px;
+  font-size: 12px;
+  color: var(--color-text-dim);
+}
+
+.modal-version-label {
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-weight: 500;
+  font-size: 11px;
+}
+
+.modal-version-value {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+}
+
 .modal-footer {
   display: flex;
   justify-content: flex-end;

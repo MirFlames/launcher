@@ -34,6 +34,10 @@ export function GetConfig() {
   return window['go']['main']['App']['GetConfig']();
 }
 
+export function GetLauncherVersion() {
+  return window['go']['main']['App']['GetLauncherVersion']();
+}
+
 export function GetNewsFeed() {
   return window['go']['main']['App']['GetNewsFeed']();
 }

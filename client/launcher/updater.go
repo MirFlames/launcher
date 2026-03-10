@@ -200,8 +200,9 @@ func (a *App) CheckLauncherUpdate() (*LauncherUpdateInfo, error) {
 	return info, nil
 }
 
-// ApplyLauncherUpdate скачивает новую версию лаунчера и запускает её.
-// Предполагается, что новая версия сама позаботится о замене старого бинарника.
+// ApplyLauncherUpdate скачивает новую версию лаунчера и обновляет текущий бинарник.
+// На Windows выполняется обновление "на месте", чтобы ярлыки, указывающие на launcher.exe,
+// продолжали открывать обновлённую версию.
 func (a *App) ApplyLauncherUpdate() error {
 	manifest := lastUpdateManifest
 	if manifest == nil {
@@ -217,6 +218,48 @@ func (a *App) ApplyLauncherUpdate() error {
 	if compareVersions(manifest.Version, LauncherVersion) <= 0 {
 		return fmt.Errorf("обновление не требуется")
 	}
+
+	// Специальная логика для Windows: обновление "на месте" текущего launcher.exe,
+	// чтобы ярлыки продолжали работать.
+	if runtime.GOOS == "windows" {
+		currentExe, err := os.Executable()
+		if err != nil {
+			return fmt.Errorf("не удалось определить путь к текущему exe: %w", err)
+		}
+		currentExe, err = filepath.Abs(currentExe)
+		if err != nil {
+			return fmt.Errorf("не удалось нормализовать путь к exe: %w", err)
+		}
+
+		dir := filepath.Dir(currentExe)
+		newPath := filepath.Join(dir, "launcher.new.exe")
+
+		// Скачиваем новый бинарник рядом с текущим.
+		tmpManifest := *manifest
+		tmpManifest.DownloadURL = manifest.DownloadURL
+		if err := downloadFile(tmpManifest.DownloadURL, newPath, tmpManifest.Size, nil); err != nil {
+			return fmt.Errorf("загрузка обновления: %w", err)
+		}
+		if !verifySHA256(newPath, manifest.SHA256) {
+			_ = os.Remove(newPath)
+			return fmt.Errorf("контрольная сумма загруженного обновления не совпадает")
+		}
+
+		// Запускаем вспомогательный cmd, который после задержки заменит бинарник и перезапустит лаунчер.
+		// Используем небольшую паузу, чтобы успеть корректно завершить текущий процесс.
+		script := fmt.Sprintf(
+			`ping 127.0.0.1 -n 3 >NUL && copy /Y "%s" "%s" >NUL && del "%s" && start "" "%s"`,
+			newPath, currentExe, newPath, currentExe,
+		)
+		cmd := exec.Command("cmd.exe", "/C", script) // #nosec G204 — управляемые пути
+		if err := cmd.Start(); err != nil {
+			return fmt.Errorf("не удалось запустить процесс обновления: %w", err)
+		}
+		// Дальнейшее завершение и рестарт лаунчера обрабатываются внешним процессом.
+		return nil
+	}
+
+	// Для других платформ оставляем прежнее поведение: запускаем загруженный бинарник.
 	path, err := downloadUpdateBinary(manifest)
 	if err != nil {
 		return err
