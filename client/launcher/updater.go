@@ -291,13 +291,27 @@ func (a *App) ApplyLauncherUpdate() error {
 			return fmt.Errorf("копирование обновления: %w", err)
 		}
 
-		// Запускаем вспомогательный cmd, который после задержки заменит бинарник и перезапустит лаунчер.
-		// Используем небольшую паузу, чтобы успеть корректно завершить текущий процесс.
-		script := fmt.Sprintf(
-			`ping 127.0.0.1 -n 3 >NUL && copy /Y "%s" "%s" >NUL && del "%s" && start "" "%s"`,
-			newPath, currentExe, newPath, currentExe,
+		// Создаём bat-скрипт, который в фоне дождётся освобождения файла, заменит бинарник и перезапустит лаунчер.
+		scriptPath := filepath.Join(os.TempDir(), "launcher-update-"+manifest.Version+".bat")
+		scriptContents := `@echo off
+setlocal ENABLEDELAYEDEXPANSION
+:loop
+ping 127.0.0.1 -n 2 >NUL
+copy /Y "%LAUNCHER_NEW%" "%LAUNCHER_OLD%" >NUL
+if errorlevel 1 goto loop
+del "%LAUNCHER_NEW%"
+start "" "%LAUNCHER_OLD%"
+endlocal
+`
+		if err := os.WriteFile(scriptPath, []byte(scriptContents), 0600); err != nil {
+			return fmt.Errorf("не удалось создать скрипт обновления: %w", err)
+		}
+
+		cmd := exec.Command("cmd.exe", "/C", "start", "/MIN", scriptPath) // #nosec G204 — управляемые пути
+		cmd.Env = append(os.Environ(),
+			"LAUNCHER_OLD="+currentExe,
+			"LAUNCHER_NEW="+newPath,
 		)
-		cmd := exec.Command("cmd.exe", "/C", "start", "/MIN", "cmd.exe", "/C", script) // #nosec G204 — управляемые пути
 		if err := cmd.Start(); err != nil {
 			return fmt.Errorf("не удалось запустить процесс обновления: %w", err)
 		}
