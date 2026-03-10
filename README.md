@@ -1,4 +1,15 @@
-# Launcher
+# Как начать игру
+
+1. Скачайте архив последнего релиза лаунчера (Windows):
+   **[launcher.zip — последний релиз](https://github.com/MirFlames/launcher/releases/latest/download/launcher.zip)**
+
+2. Распакуйте архив в любую папку (launcher.exe должен быть в ОТДЕЛЬНОЙ папке, а не, например, в "Загрузках").
+
+3. Запустите `launcher.exe`.
+
+4. Следуйте подсказкам.
+
+---
 
 ## Сборка и переменные окружения
 
@@ -69,6 +80,46 @@ cd client/launcher
 | Launcher | `.\build.ps1 build` (из `client/launcher/`) | `launcher/.env` или `client/launcher/.sign.env` |
 | launcher_auth | `.\gradlew :mods:launcher_auth:build` (из корня) | `launcher/.env` |
 | launcher_auto_connect | `.\gradlew :mods:launcher_auto_connect:build` | не требуется |
+
+---
+
+## Релизы лаунчера
+
+Сборка и публикация релиза выполняются GitHub Actions при пуше тега. Манифест обновления формируется в CI.
+
+### Шаги
+
+1. **Поднять версию** в `client/launcher/version.go`:
+   ```go
+   const LauncherVersion = "1.0.26"  // следующая версия
+   ```
+
+2. **Закоммитить и запушить main:**
+   ```powershell
+   git add client/launcher/version.go
+   git commit -m "Версия 1.0.26"
+   git push origin main
+   ```
+
+3. **Создать тег и запушить:**
+   - **Обычный (опциональный) релиз:** тег `vX.Y.Z` (например `v1.0.26`).
+   - **Критический (обязательный) релиз:** тег `vX.Y.Z-critical` (например `v1.0.26-critical`).
+   ```powershell
+   git tag v1.0.26
+   git push origin v1.0.26
+   ```
+   Или для критического:
+   ```powershell
+   git tag v1.0.26-critical
+   git push origin v1.0.26-critical
+   ```
+
+4. Дождаться завершения workflow в **Actions**. В релизе появятся: `launcher.zip`, `launcher-update.json`, `launcher-update.json.sig`.
+
+### Логика обновлений у клиента
+
+- Релиз с тегом `-critical` → в манифесте `mandatory: true`; клиент показывает только «Обновить».
+- Обычный релиз → `mandatory: false`, но в манифесте заполняется `min_mandatory_version` (последняя версия с тегом `-critical`). Если версия клиента **ниже** `min_mandatory_version`, обновление показывается как **обязательное** (пропущен критический апдейт).
 
 ---
 
