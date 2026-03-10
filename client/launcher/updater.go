@@ -1,6 +1,7 @@
 package main
 
 import (
+	"archive/zip"
 	"crypto/ed25519"
 	"encoding/hex"
 	"encoding/json"
@@ -147,30 +148,76 @@ func compareVersions(a, b string) int {
 	return 0
 }
 
-// downloadUpdateBinary скачивает бинарник обновления в temp-файл и проверяет SHA256.
+// downloadUpdateBinary скачивает обновление (exe или zip) в temp-файл, проверяет SHA256
+// и при необходимости распаковывает zip до исполняемого файла. Возвращает путь к exe.
 func downloadUpdateBinary(manifest *LauncherUpdateManifest) (string, error) {
 	if manifest == nil {
 		return "", fmt.Errorf("манифест обновления не задан")
 	}
 	tmpDir := os.TempDir()
 	base := "launcher-update-" + strings.ReplaceAll(manifest.Version, " ", "_")
-	if runtime.GOOS == "windows" {
-		base += ".exe"
-	}
-	tmpPath := filepath.Join(tmpDir, base)
+	downloadPath := filepath.Join(tmpDir, base)
 
-	if err := downloadFile(manifest.DownloadURL, tmpPath, manifest.Size, nil); err != nil {
+	// Добавляем расширение для удобства (если есть в URL).
+	if u, err := url.Parse(manifest.DownloadURL); err == nil {
+		if ext := filepath.Ext(u.Path); ext != "" {
+			downloadPath += ext
+		}
+	}
+
+	if err := downloadFile(manifest.DownloadURL, downloadPath, manifest.Size, nil); err != nil {
 		return "", fmt.Errorf("загрузка обновления: %w", err)
 	}
-	if !verifySHA256(tmpPath, manifest.SHA256) {
-		os.Remove(tmpPath)
+	if !verifySHA256(downloadPath, manifest.SHA256) {
+		_ = os.Remove(downloadPath)
 		return "", fmt.Errorf("контрольная сумма загруженного обновления не совпадает")
 	}
-	// На *nix помечаем как исполняемый, чтобы можно было запустить напрямую.
-	if runtime.GOOS != "windows" {
-		_ = os.Chmod(tmpPath, 0755)
+
+	// Если это zip-архив — распаковываем exe.
+	if strings.EqualFold(filepath.Ext(downloadPath), ".zip") {
+		r, err := zip.OpenReader(downloadPath)
+		if err != nil {
+			return "", fmt.Errorf("распаковка обновления: %w", err)
+		}
+		defer r.Close()
+
+		var exeFile *zip.File
+		for _, f := range r.File {
+			if !f.FileInfo().IsDir() && strings.HasSuffix(strings.ToLower(f.Name), ".exe") {
+				exeFile = f
+				break
+			}
+		}
+		if exeFile == nil {
+			return "", fmt.Errorf("в архиве обновления не найден .exe файл")
+		}
+
+		rc, err := exeFile.Open()
+		if err != nil {
+			return "", fmt.Errorf("чтение exe из архива: %w", err)
+		}
+		defer rc.Close()
+
+		exePath := filepath.Join(tmpDir, base+".exe")
+		out, err := os.Create(exePath)
+		if err != nil {
+			return "", fmt.Errorf("создание временного exe: %w", err)
+		}
+		if _, err := io.Copy(out, rc); err != nil {
+			out.Close()
+			return "", fmt.Errorf("распаковка exe: %w", err)
+		}
+		out.Close()
+		// Архив больше не нужен.
+		_ = os.Remove(downloadPath)
+		return exePath, nil
 	}
-	return tmpPath, nil
+
+	// Не zip — считаем, что это готовый бинарник.
+	if runtime.GOOS != "windows" {
+		_ = os.Chmod(downloadPath, 0755)
+	}
+	return downloadPath, nil
 }
 
 // CheckLauncherUpdate проверяет наличие новой версии лаунчера.
@@ -234,15 +281,14 @@ func (a *App) ApplyLauncherUpdate() error {
 		dir := filepath.Dir(currentExe)
 		newPath := filepath.Join(dir, "launcher.new.exe")
 
-		// Скачиваем новый бинарник рядом с текущим.
-		tmpManifest := *manifest
-		tmpManifest.DownloadURL = manifest.DownloadURL
-		if err := downloadFile(tmpManifest.DownloadURL, newPath, tmpManifest.Size, nil); err != nil {
-			return fmt.Errorf("загрузка обновления: %w", err)
+		// Скачиваем и, при необходимости, распаковываем обновление.
+		exePath, err := downloadUpdateBinary(manifest)
+		if err != nil {
+			return err
 		}
-		if !verifySHA256(newPath, manifest.SHA256) {
-			_ = os.Remove(newPath)
-			return fmt.Errorf("контрольная сумма загруженного обновления не совпадает")
+		// Перекладываем exe рядом с текущим бинарником в launcher.new.exe
+		if err := copyFile(exePath, newPath); err != nil {
+			return fmt.Errorf("копирование обновления: %w", err)
 		}
 
 		// Запускаем вспомогательный cmd, который после задержки заменит бинарник и перезапустит лаунчер.
@@ -251,7 +297,7 @@ func (a *App) ApplyLauncherUpdate() error {
 			`ping 127.0.0.1 -n 3 >NUL && copy /Y "%s" "%s" >NUL && del "%s" && start "" "%s"`,
 			newPath, currentExe, newPath, currentExe,
 		)
-		cmd := exec.Command("cmd.exe", "/C", script) // #nosec G204 — управляемые пути
+		cmd := exec.Command("cmd.exe", "/C", "start", "/MIN", "cmd.exe", "/C", script) // #nosec G204 — управляемые пути
 		if err := cmd.Start(); err != nil {
 			return fmt.Errorf("не удалось запустить процесс обновления: %w", err)
 		}
@@ -269,5 +315,28 @@ func (a *App) ApplyLauncherUpdate() error {
 		return fmt.Errorf("не удалось запустить установщик обновления: %w", err)
 	}
 	return nil
+}
+
+// copyFile копирует файл src в dst, перезаписывая, если существует.
+func copyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	if err := os.MkdirAll(filepath.Dir(dst), dirMode); err != nil {
+		return err
+	}
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	if _, err := io.Copy(out, in); err != nil {
+		return err
+	}
+	return out.Sync()
 }
 

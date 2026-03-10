@@ -83,11 +83,16 @@ jobs:
         run: |
           ./build.ps1 build
 
-      - name: Compute SHA256 of launcher.exe
-        shell: bash
-        working-directory: client/launcher/build/bin
+      - name: Prepare release artifacts (zip)
+        shell: pwsh
         run: |
-          HASH_LINE=$(sha256sum launcher.exe)
+          Copy-Item "client/launcher/build/bin/launcher.exe" "launcher.exe" -Force
+          Compress-Archive -Path "launcher.exe" -DestinationPath "launcher.zip" -Force
+
+      - name: Compute SHA256 of launcher.zip
+        shell: bash
+        run: |
+          HASH_LINE=$(sha256sum launcher.zip)
           HASH="${HASH_LINE%% *}"
           echo "LAUNCHER_SHA256=$HASH" >> $GITHUB_ENV
 
@@ -119,7 +124,7 @@ jobs:
             "version": "${VERSION}",
             "mandatory": ${MANDATORY},
             "changelog": "$(echo "$CHANGELOG" | sed 's/"/\\"/g')",
-            "download_url": "https://github.com/${{ github.repository }}/releases/download/${TAG_NAME}/launcher.exe",
+            "download_url": "https://github.com/${{ github.repository }}/releases/download/${TAG_NAME}/launcher.zip",
             "size": 0,
             "sha256": "${SHA256}"
           }
@@ -136,11 +141,6 @@ jobs:
           xxd -p -c 256 launcher-update.sig.bin | tr -d '\n' > launcher-update.json.sig
           rm -f launcher-update.sig.bin private.pem
 
-      - name: Prepare release artifacts
-        shell: bash
-        run: |
-          cp client/launcher/build/bin/launcher.exe "launcher.exe"
-
       - name: Create GitHub Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -151,7 +151,7 @@ jobs:
           NOTES="${{ steps.changelog.outputs.changelog }}"
 
           gh release create "$VERSION_TAG" \
-            "launcher.exe" \
+            "launcher.zip" \
             "launcher-update.json" \
             "launcher-update.json.sig" \
             --title "$TITLE" \
