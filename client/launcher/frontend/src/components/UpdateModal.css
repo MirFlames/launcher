@@ -1,0 +1,112 @@
+.update-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+}
+
+.update-modal {
+    background: #14161b;
+    color: #f5f5f5;
+    border-radius: 12px;
+    box-shadow: 0 18px 45px rgba(0, 0, 0, 0.7);
+    width: 520px;
+    max-width: calc(100% - 32px);
+    max-height: calc(100% - 32px);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.update-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.update-modal-header h2 {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0;
+}
+
+.update-modal-close {
+    border: none;
+    background: transparent;
+    color: #9ca3af;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 4px;
+}
+
+.update-modal-close:hover {
+    color: #f9fafb;
+}
+
+.update-modal-body {
+    padding: 14px 18px 8px;
+    overflow-y: auto;
+}
+
+.update-modal-version {
+    margin: 0 0 6px;
+    font-size: 13px;
+    color: #d1d5db;
+}
+
+.update-modal-size {
+    margin: 0 0 12px;
+    font-size: 12px;
+    color: #9ca3af;
+}
+
+.update-modal-changelog h3 {
+    margin: 0 0 6px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.update-modal-changelog pre {
+    margin: 0;
+    padding: 8px 10px;
+    background: #101218;
+    border-radius: 8px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: 12px;
+    line-height: 1.4;
+    max-height: 220px;
+    overflow: auto;
+    white-space: pre-wrap;
+}
+
+.update-modal-error {
+    margin-top: 10px;
+    color: #fecaca;
+    font-size: 12px;
+}
+
+.update-modal-progress {
+    margin-top: 10px;
+    color: #a5b4fc;
+    font-size: 12px;
+}
+
+.update-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 10px 18px 14px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.update-modal-footer .btn {
+    min-width: 120px;
+}
+

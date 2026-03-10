@@ -1,0 +1,161 @@
+name: Build & Release Launcher
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+
+    permissions:
+      contents: write
+
+    env:
+      TAG_NAME: ${{ github.ref_name }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Restore code signing cert (optional)
+        shell: pwsh
+        run: |
+          if ('${{ secrets.CODESIGN_PFX_BASE64 }}') {
+            Write-Host "Restoring code signing certificate from secret..."
+            $bytes = [Convert]::FromBase64String('${{ secrets.CODESIGN_PFX_BASE64 }}')
+            $path = "$env:USERPROFILE\codesign-ci.pfx"
+            [IO.File]::WriteAllBytes($path, $bytes)
+            "CODESIGN_PFX=$path" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            "CODESIGN_PASSWORD=${{ secrets.CODESIGN_PASSWORD }}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          } else {
+            Write-Host "CODESIGN_PFX_BASE64 secret not set. Skipping signing in CI." -ForegroundColor Yellow
+          }
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: client/launcher/frontend/package-lock.json
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Install Wails CLI
+        shell: pwsh
+        run: |
+          go install github.com/wailsapp/wails/v2/cmd/wails@latest
+          echo "$env:USERPROFILE\go\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Install frontend deps
+        working-directory: client/launcher/frontend
+        run: npm ci
+
+      - name: Derive version and mandatory flag from tag
+        id: version
+        shell: bash
+        run: |
+          RAW_TAG="${TAG_NAME}"
+          CLEAN="${RAW_TAG#v}"
+          CLEAN="${CLEAN%-critical}"
+          echo "version=$CLEAN" >> $GITHUB_OUTPUT
+
+          if [[ "$RAW_TAG" == *"-critical" ]]; then
+            echo "mandatory=true" >> $GITHUB_OUTPUT
+          else
+            echo "mandatory=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build launcher via build.ps1
+        working-directory: client/launcher
+        shell: pwsh
+        env:
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_PORT: ${{ secrets.SERVER_PORT }}
+          UPDATE_MANIFEST_URL: https://github.com/${{ github.repository }}/releases/latest/download/launcher-update.json
+          UPDATE_SIGNATURE_URL: https://github.com/${{ github.repository }}/releases/latest/download/launcher-update.json.sig
+          UPDATE_PUBLIC_KEY_HEX: ${{ secrets.LAUNCHER_UPDATE_PUBLIC_KEY_HEX }}
+        run: |
+          ./build.ps1 build
+
+      - name: Compute SHA256 of launcher.exe
+        shell: bash
+        working-directory: client/launcher/build/bin
+        run: |
+          HASH_LINE=$(sha256sum launcher.exe)
+          HASH="${HASH_LINE%% *}"
+          echo "LAUNCHER_SHA256=$HASH" >> $GITHUB_ENV
+
+      - name: Generate changelog from git log
+        id: changelog
+        shell: bash
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -n "$PREV_TAG" ]; then
+            RANGE="$PREV_TAG..${TAG_NAME}"
+          else
+            RANGE="${TAG_NAME}"
+          fi
+          CHANGELOG=$(git log --oneline "$RANGE" || echo "Initial release")
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Generate launcher-update.json
+        shell: bash
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          MANDATORY="${{ steps.version.outputs.mandatory }}"
+          CHANGELOG="${{ steps.changelog.outputs.changelog }}"
+          SHA256="${LAUNCHER_SHA256}"
+
+          cat > launcher-update.json <<EOF
+          {
+            "version": "${VERSION}",
+            "mandatory": ${MANDATORY},
+            "changelog": "$(echo "$CHANGELOG" | sed 's/"/\\"/g')",
+            "download_url": "https://github.com/${{ github.repository }}/releases/download/${TAG_NAME}/FamMCLauncher-${VERSION}.exe",
+            "size": 0,
+            "sha256": "${SHA256}"
+          }
+          EOF
+
+          echo "Generated launcher-update.json:"
+          cat launcher-update.json
+
+      - name: Sign launcher-update.json (Ed25519, hex)
+        shell: bash
+        run: |
+          echo "${{ secrets.LAUNCHER_UPDATE_PRIVATE_KEY }}" > private.pem
+          openssl pkeyutl -sign -inkey private.pem -in launcher-update.json -out launcher-update.sig.bin
+          xxd -p -c 256 launcher-update.sig.bin | tr -d '\n' > launcher-update.json.sig
+          rm -f launcher-update.sig.bin private.pem
+
+      - name: Prepare release artifacts
+        shell: bash
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          cp client/launcher/build/bin/launcher.exe "FamMCLauncher-${VERSION}.exe"
+
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          VERSION_TAG="${TAG_NAME}"
+          TITLE="Launcher ${VERSION_TAG}"
+          NOTES="${{ steps.changelog.outputs.changelog }}"
+
+          gh release create "$VERSION_TAG" \
+            "FamMCLauncher-${{ steps.version.outputs.version }}.exe" \
+            "launcher-update.json" \
+            "launcher-update.json.sig" \
+            --title "$TITLE" \
+            --notes "$NOTES" \
+            --verify-tag
+

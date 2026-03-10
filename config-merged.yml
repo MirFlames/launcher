@@ -9,19 +9,19 @@ services:
         condition: service_started
         required: true
     environment:
-      API_BASE_URL: http://62.182.138.124:58293
+      API_BASE_URL: ${API_BASE_URL}
       AUTH_API_URL: http://backend:8080
-      BASE_URL: http://62.182.138.124
-      CODESIGN_PASSWORD: j9#m!lkqs2381vo
-      CODESIGN_PFX: '%USERPROFILE%\codesign.pfx'
+      BASE_URL: ${BASE_URL}
+      CODESIGN_PASSWORD: ${CODESIGN_PASSWORD}
+      CODESIGN_PFX: ${CODESIGN_PFX}
       FILES_PATH: /app/files
-      PORT: "58293"
-      SERVER_HOST: mc
-      SERVER_PORT: "25565"
+      PORT: "${PORT}"
+      SERVER_HOST: ${SERVER_HOST}
+      SERVER_PORT: "${SERVER_PORT}"
       SESSIONS_EXPORT_TOKEN: ${SESSIONS_EXPORT_TOKEN}
-      TELEGRAM_BOT_TOKEN: 8623264086:AAGdiUFL0Tl9qaKuw908hS0e5x1GjiDO1u0
-      TELEGRAM_BOT_USERNAME: fam_mc_bot
-      TELEGRAM_REQUIRED_CHANNEL: '@mc_fam'
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME}
+      TELEGRAM_REQUIRED_CHANNEL: ${TELEGRAM_REQUIRED_CHANNEL}
     labels:
       logging: promtail
     networks:
@@ -95,8 +95,8 @@ services:
         condition: service_started
         required: true
     environment:
-      GF_SECURITY_ADMIN_PASSWORD: admin
-      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GF_SECURITY_ADMIN_PASSWORD}
+      GF_SECURITY_ADMIN_USER: ${GF_SECURITY_ADMIN_USER}
       GF_SERVER_HTTP_PORT: "3000"
       GF_USERS_ALLOW_SIGN_UP: "false"
     image: grafana/grafana:11.4.0

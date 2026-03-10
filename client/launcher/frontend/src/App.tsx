@@ -6,6 +6,7 @@ import {SettingsModal} from './components/SettingsModal';
 import {NewsFeed} from './components/NewsFeed';
 import {ProgressOverlay} from './components/ProgressOverlay';
 import {GrassBlockScene} from './components/GrassBlockScene';
+import {UpdateModal, LauncherUpdateInfo} from './components/UpdateModal';
 
 function App() {
     const [authenticated, setAuthenticated] = useState(false);
@@ -16,6 +17,10 @@ function App() {
     const [authError, setAuthError] = useState('');
     const [playError, setPlayError] = useState('');
     const [playHovered, setPlayHovered] = useState(false);
+    const [updateInfo, setUpdateInfo] = useState<LauncherUpdateInfo | null>(null);
+    const [updateVisible, setUpdateVisible] = useState(false);
+    const [updateInProgress, setUpdateInProgress] = useState(false);
+    const [updateError, setUpdateError] = useState('');
 
     function refreshAuth() {
         AuthRefreshSession()
@@ -31,6 +36,25 @@ function App() {
 
     useEffect(() => {
         refreshAuth();
+    }, []);
+
+    // Проверка обновления лаунчера при старте.
+    useEffect(() => {
+        const w = window as any;
+        const api = w?.go?.main?.App;
+        if (!api || typeof api.CheckLauncherUpdate !== 'function') {
+            return;
+        }
+        api.CheckLauncherUpdate()
+            .then((info: LauncherUpdateInfo | null) => {
+                if (info && info.version && info.version !== info.current_version) {
+                    setUpdateInfo(info);
+                    setUpdateVisible(true);
+                }
+            })
+            .catch(() => {
+                // Тихо игнорируем ошибки проверки обновления
+            });
     }, []);
 
     useEffect(() => {
@@ -92,6 +116,34 @@ function App() {
                 setAuthenticated(false);
                 setNickname('');
             });
+    }
+
+    function handleUpdateNow() {
+        if (!updateInfo) return;
+        setUpdateError('');
+        setUpdateInProgress(true);
+        const w = window as any;
+        const api = w?.go?.main?.App;
+        if (!api || typeof api.ApplyLauncherUpdate !== 'function') {
+            setUpdateError('Механизм автообновления недоступен.');
+            setUpdateInProgress(false);
+            return;
+        }
+        api.ApplyLauncherUpdate()
+            .then(() => {
+                setUpdateInProgress(false);
+                // После успешного старта нового лаунчера пробуем аккуратно закрыть текущий.
+                Quit();
+            })
+            .catch((err: any) => {
+                setUpdateInProgress(false);
+                const msg = (err?.message || (typeof err === 'string' ? err : err?.toString?.() || String(err))).trim();
+                setUpdateError(msg || 'Не удалось установить обновление.');
+            });
+    }
+
+    function handleUpdateSkip() {
+        setUpdateVisible(false);
     }
 
     return (
@@ -171,6 +223,16 @@ function App() {
                 onClose={() => setSettingsOpen(false)}
                 onSaved={() => { setNewsKey((k) => k + 1); refreshAuth(); }}
             />
+            {updateInfo && (
+                <UpdateModal
+                    info={updateInfo}
+                    visible={updateVisible}
+                    inProgress={updateInProgress}
+                    error={updateError}
+                    onUpdate={handleUpdateNow}
+                    onSkip={handleUpdateSkip}
+                />
+            )}
             <ProgressOverlay
                 visible={progress.visible}
                 title={progress.title}

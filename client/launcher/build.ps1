@@ -76,6 +76,9 @@ switch ($Target) {
         if ($apiUrl) { $ldflags += " -X main.buildDefaultApiBaseUrl=$apiUrl" }
         if ($env:SERVER_HOST) { $ldflags += " -X main.buildDefaultServerHost=$($env:SERVER_HOST)" }
         if ($env:SERVER_PORT) { $ldflags += " -X main.buildDefaultServerPort=$($env:SERVER_PORT)" }
+        if ($env:UPDATE_MANIFEST_URL) { $ldflags += " -X main.buildUpdateManifestURL=$($env:UPDATE_MANIFEST_URL)" }
+        if ($env:UPDATE_SIGNATURE_URL) { $ldflags += " -X main.buildUpdateSignatureURL=$($env:UPDATE_SIGNATURE_URL)" }
+        if ($env:UPDATE_PUBLIC_KEY_HEX) { $ldflags += " -X main.buildUpdatePublicKeyHex=$($env:UPDATE_PUBLIC_KEY_HEX)" }
         wails build -ldflags $ldflags -trimpath
         Write-Host "Build complete. Output in build/bin/" -ForegroundColor Green
         Sign-Executable

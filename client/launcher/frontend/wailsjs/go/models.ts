@@ -32,6 +32,30 @@ export namespace main {
 	        this.sync_client_settings = source["sync_client_settings"];
 	    }
 	}
+	export class LauncherUpdateInfo {
+	    version: string;
+	    mandatory: boolean;
+	    changelog: string;
+	    download_url: string;
+	    size: number;
+	    sha256: string;
+	    current_version: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new LauncherUpdateInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.version = source["version"];
+	        this.mandatory = source["mandatory"];
+	        this.changelog = source["changelog"];
+	        this.download_url = source["download_url"];
+	        this.size = source["size"];
+	        this.sha256 = source["sha256"];
+	        this.current_version = source["current_version"];
+	    }
+	}
 	export class NewsItem {
 	    text: string;
 	    link?: string;

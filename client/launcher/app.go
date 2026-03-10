@@ -142,3 +142,4 @@ func (a *App) GetNewsFeed() (*NewsFeedResponse, error) {
 	session, _ := authLoadSession()
 	return fetchNewsFeed(base, session)
 }
+
