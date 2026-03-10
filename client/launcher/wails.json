@@ -18,6 +18,6 @@
     "comments": "Minecraft Launcher for FamMC server"
   },
   "windows": {
-    "icon": "frontend/src/assets/images/logo-universal.png"
+    "icon": "frontend/src/assets/images/appicon.png"
   }
 }

@@ -119,7 +119,7 @@ jobs:
             "version": "${VERSION}",
             "mandatory": ${MANDATORY},
             "changelog": "$(echo "$CHANGELOG" | sed 's/"/\\"/g')",
-            "download_url": "https://github.com/${{ github.repository }}/releases/download/${TAG_NAME}/FamMCLauncher-${VERSION}.exe",
+            "download_url": "https://github.com/${{ github.repository }}/releases/download/${TAG_NAME}/launcher.exe",
             "size": 0,
             "sha256": "${SHA256}"
           }
@@ -139,8 +139,7 @@ jobs:
       - name: Prepare release artifacts
         shell: bash
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          cp client/launcher/build/bin/launcher.exe "FamMCLauncher-${VERSION}.exe"
+          cp client/launcher/build/bin/launcher.exe "launcher.exe"
 
       - name: Create GitHub Release
         env:
@@ -152,7 +151,7 @@ jobs:
           NOTES="${{ steps.changelog.outputs.changelog }}"
 
           gh release create "$VERSION_TAG" \
-            "FamMCLauncher-${{ steps.version.outputs.version }}.exe" \
+            "launcher.exe" \
             "launcher-update.json" \
             "launcher-update.json.sig" \
             --title "$TITLE" \
