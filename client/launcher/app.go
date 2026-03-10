@@ -26,6 +26,11 @@ func (a *App) startup(ctx context.Context) {
 	logInfo("app", "startup завершён, контекст инициализирован")
 	// При запуске всегда выводим окно лаунчера поверх остальных.
 	runtime.WindowShow(ctx)
+	runtime.WindowSetAlwaysOnTop(ctx, true)
+	go func() {
+		time.Sleep(150 * time.Millisecond)
+		runtime.WindowSetAlwaysOnTop(ctx, false)
+	}()
 }
 
 // Greet returns a greeting for the given name
