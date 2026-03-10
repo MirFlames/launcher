@@ -254,10 +254,15 @@ func loadConfig(filename string) error {
 			return fmt.Errorf("невалидное имя мода [%d]: %w", i, err)
 		}
 	}
+	for i, f := range config.ConfigFiles {
+		if err := validateFileName(f.Name); err != nil {
+			return fmt.Errorf("невалидное имя config_files [%d]: %w", i, err)
+		}
+	}
 
 	// JDK и LauncherVersion — из config (не секреты)
 	if config.LauncherVersion == "" {
-		config.LauncherVersion = "1.0.0"
+		config.LauncherVersion = "1.0.2"
 	}
 	if config.JDK.Version == "" {
 		config.JDK.Version = "jdk-21.0.2"
@@ -358,12 +363,17 @@ func handleVersion(w http.ResponseWriter, r *http.Request) {
 	for i, m := range config.Mods {
 		mods[i] = ModFile{Name: m.Name, URL: buildFullURL(baseURL, port, m.URL), Hash: m.Hash}
 	}
+	configFiles := make([]ClientFile, len(config.ConfigFiles))
+	for i, f := range config.ConfigFiles {
+		configFiles[i] = ClientFile{Name: f.Name, URL: buildFullURL(baseURL, port, f.URL), Hash: f.Hash}
+	}
 
 	serverInfo := ServerInfo{
 		MinecraftVersion: config.MinecraftVersion,
 		ModsHash:         config.ModsHash,
 		ClientFiles:      clientFiles,
 		Mods:             mods,
+		ConfigFiles:      configFiles,
 		ServerHost:       config.ServerHost,
 		ServerPort:       config.ServerPort,
 	}

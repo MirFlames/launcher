@@ -23,6 +23,7 @@ type ServerVersion struct {
 	ModsHash         string       `json:"mods_hash"`
 	ClientFiles      []ServerFile `json:"client_files"`
 	Mods             []ServerFile `json:"mods"`
+	ConfigFiles      []ServerFile `json:"config_files"`
 	ServerHost       string       `json:"server_host"`
 	ServerPort       string       `json:"server_port"`
 }
@@ -369,6 +370,31 @@ func pruneStaleMods(modsDir string, expectedMods map[string]bool) {
 			os.Remove(filepath.Join(modsDir, e.Name()))
 		}
 	}
+}
+
+// EnsureModConfigs скачивает конфиги модов из /api/version (config_files) в gameDir.
+// Скачивается только конфиг, которого ещё нет у клиента; существующие не перезаписываются.
+// Локальные конфиги, которых нет на сервере, не удаляются.
+func EnsureModConfigs(gameDir string, version *ServerVersion, onProgress func(stage, status string, progress float64)) error {
+	if version == nil || len(version.ConfigFiles) == 0 {
+		return nil
+	}
+	configDir := filepath.Join(gameDir, "config")
+	if err := os.MkdirAll(configDir, dirMode); err != nil {
+		return err
+	}
+	var missing []ServerFile
+	for _, f := range version.ConfigFiles {
+		dest := filepath.Join(gameDir, f.Name)
+		if _, err := os.Stat(dest); err != nil {
+			missing = append(missing, f)
+		}
+	}
+	if len(missing) == 0 {
+		return nil
+	}
+	_, err := downloadFilesWithVerification(missing, gameDir, "Загрузка конфигов модов", "Конфиг", nil, onProgress)
+	return err
 }
 
 // EnsureMods скачивает моды из /api/version и удаляет моды, которых нет на сервере.

@@ -206,6 +206,13 @@ func ensureGameFiles(gameDir string, version *ServerVersion, modpack *ModpackCon
 		return fmt.Errorf("моды: %w", err)
 	}
 
+	if onProgress != nil && version != nil && len(version.ConfigFiles) > 0 {
+		onProgress("Загрузка конфигов модов", "Скачивание конфигов...", 0)
+	}
+	if err := EnsureModConfigs(gameDir, version, onProgress); err != nil {
+		return fmt.Errorf("конфиги модов: %w", err)
+	}
+
 	if version != nil && modsDownloaded && cfg != nil && cfg.SyncClientSettings {
 		if err := EnsureClientFiles(gameDir, version, onProgress); err != nil {
 			return fmt.Errorf("client_files: %w", err)

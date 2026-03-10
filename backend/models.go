@@ -6,6 +6,7 @@ type ServerInfo struct {
 	ModsHash         string       `json:"mods_hash"`
 	ClientFiles      []ClientFile `json:"client_files"`
 	Mods             []ModFile    `json:"mods"`
+	ConfigFiles      []ClientFile `json:"config_files"`
 	ServerHost       string       `json:"server_host,omitempty"`
 	ServerPort       string       `json:"server_port,omitempty"`
 }
@@ -30,6 +31,7 @@ type Config struct {
 	ModsHash         string       `json:"mods_hash"`
 	ClientFiles      []ClientFile `json:"client_files"`
 	Mods             []ModFile    `json:"mods"`
+	ConfigFiles      []ClientFile `json:"config_files"`
 	FilesPath        string       `json:"files_path"`
 	Port             string       `json:"port"`
 	// Конфигурация лаунчера и Minecraft-сервера

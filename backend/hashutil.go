@@ -109,13 +109,37 @@ func updateConfigHashes(quiet bool) error {
 		log.Printf("Предупреждение при сканировании mods: %v", err)
 	}
 
-	// 5. Сканируем versions — добавляем новые файлы
+	// 5. Фильтруем ConfigFiles: оставляем только существующие, обновляем хеши
+	var newConfigFiles []ClientFile
+	for _, f := range config.ConfigFiles {
+		relPath := getRelPathFromURL(f.URL)
+		fullPath := filepath.Join(config.FilesPath, filepath.FromSlash(relPath))
+		hash, err := calculateFileHash(fullPath)
+		if err != nil {
+			log.Printf("[Hashes] Удалён из config (файл отсутствует): %s", f.Name)
+			continue
+		}
+		storagePath := toStoragePath(relPath)
+		newConfigFiles = append(newConfigFiles, ClientFile{Name: f.Name, URL: storagePath, Hash: hash})
+	}
+	existingConfigPaths := make(map[string]bool)
+	for _, f := range newConfigFiles {
+		existingConfigPaths[getRelPathFromURL(f.URL)] = true
+	}
+
+	// 6. Сканируем config — добавляем новые конфиги модов
+	configPath := filepath.Join(config.FilesPath, "config")
+	if err := collectNewConfigFiles(configPath, &newConfigFiles, existingConfigPaths, quiet); err != nil && !quiet {
+		log.Printf("Предупреждение при сканировании config: %v", err)
+	}
+
+	// 7. Сканируем versions — добавляем новые файлы
 	versionsPath := filepath.Join(config.FilesPath, "versions")
 	if err := collectNewClientFiles(versionsPath, &newClientFiles, existingClientPaths, quiet); err != nil && !quiet {
 		log.Printf("Предупреждение при сканировании versions: %v", err)
 	}
 
-	// 6. Сканируем other — добавляем settings-файлы (options.txt и т.п.)
+	// 8. Сканируем other — добавляем settings-файлы (options.txt и т.п.)
 	otherPath := filepath.Join(config.FilesPath, "other")
 	if err := collectOtherClientFiles(otherPath, &newClientFiles, existingClientPaths, quiet); err != nil && !quiet {
 		log.Printf("Предупреждение при сканировании other: %v", err)
@@ -123,6 +147,7 @@ func updateConfigHashes(quiet bool) error {
 
 	config.ClientFiles = newClientFiles
 	config.Mods = newMods
+	config.ConfigFiles = newConfigFiles
 
 	// Обновить minecraft_version из client_files
 	if len(config.ClientFiles) > 0 {
@@ -141,18 +166,18 @@ func updateConfigHashes(quiet bool) error {
 	if err != nil {
 		return fmt.Errorf("ошибка кодирования конфигурации: %w", err)
 	}
-	configPath := "config.json"
+	configFilePath := "config.json"
 	if wd, err := os.Getwd(); err == nil {
-		configPath = filepath.Join(wd, "config.json")
+		configFilePath = filepath.Join(wd, "config.json")
 	} else {
-		configPath = "config.json"
+		configFilePath = "config.json"
 	}
-	if err := os.WriteFile(configPath, data, 0644); err != nil {
+	if err := os.WriteFile(configFilePath, data, 0644); err != nil {
 		return fmt.Errorf("ошибка сохранения конфигурации в %s: %w", configPath, err)
 	}
 
 	if quiet {
-		log.Printf("[Hashes] Синхронизировано: %d модов, %d client_files", len(config.Mods), len(config.ClientFiles))
+		log.Printf("[Hashes] Синхронизировано: %d модов, %d config_files, %d client_files", len(config.Mods), len(config.ConfigFiles), len(config.ClientFiles))
 	} else {
 		log.Println("Конфигурация обновлена успешно")
 	}
@@ -186,6 +211,39 @@ func collectNewMods(modsPath string, mods *[]ModFile, existingPaths map[string]b
 			log.Printf("[Hashes] Добавлен в config: %s", filepath.Base(path))
 		} else {
 			log.Printf("[Hashes] Добавлен: %s", filepath.Base(path))
+		}
+		return nil
+	})
+}
+
+// collectNewConfigFiles добавляет в configFiles файлы из configPath (конфиги модов), которых нет в existingPaths.
+// Name сохраняется как "config/имя_файла", чтобы лаунчер положил их в gameDir/config/
+func collectNewConfigFiles(configPath string, configFiles *[]ClientFile, existingPaths map[string]bool, quiet bool) error {
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		return nil
+	}
+	return filepath.Walk(configPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return err
+		}
+		relPath, err := filepath.Rel(config.FilesPath, path)
+		if err != nil {
+			return nil
+		}
+		relPathNorm := strings.ReplaceAll(relPath, "\\", "/")
+		if existingPaths[relPathNorm] {
+			return nil
+		}
+		hash, err := calculateFileHash(path)
+		if err != nil {
+			return nil
+		}
+		storagePath := toStoragePath(relPathNorm)
+		// Name = полный путь от gameDir (config/... или config/subdir/...), чтобы клиент сохранил в нужную подпапку
+		name := relPathNorm
+		*configFiles = append(*configFiles, ClientFile{Name: name, URL: storagePath, Hash: hash})
+		if !quiet {
+			log.Printf("[Hashes] Добавлен config: %s", name)
 		}
 		return nil
 	})
@@ -311,6 +369,14 @@ func computeFilesSignature() string {
 		addFile(path, info)
 		return nil
 	})
+	configPath := filepath.Join(config.FilesPath, "config")
+	_ = filepath.Walk(configPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info == nil || info.IsDir() {
+			return nil
+		}
+		addFile(path, info)
+		return nil
+	})
 	return b.String()
 }
 
@@ -369,6 +435,12 @@ func generateConfig(filesPath string, port string, baseURL string) error {
 		log.Printf("Предупреждение при сканировании other: %v", err)
 	}
 
+	// Сканировать config (конфиги модов)
+	configPath := filepath.Join(filesPath, "config")
+	if err := scanConfig(configPath, &config); err != nil {
+		log.Printf("Предупреждение при сканировании config: %v", err)
+	}
+
 	// Определить версию майнкрафта из найденных версий
 	if len(config.ClientFiles) > 0 {
 		// Извлечь версию из первого файла (например, versions/1.20.1/client.jar -> 1.20.1)
@@ -408,13 +480,19 @@ func rescanConfig() error {
 		return fmt.Errorf("PORT обязателен, задайте в .env")
 	}
 
-	// Очистить и заново отсканировать mods и client_files
+	// Очистить и заново отсканировать mods, config_files и client_files
 	config.Mods = nil
 	config.ClientFiles = nil
+	config.ConfigFiles = nil
 
 	modsPath := filepath.Join(config.FilesPath, "mods")
 	if err := scanMods(modsPath, &config); err != nil {
 		return fmt.Errorf("ошибка сканирования модов: %w", err)
+	}
+
+	configPath := filepath.Join(config.FilesPath, "config")
+	if err := scanConfig(configPath, &config); err != nil {
+		return fmt.Errorf("ошибка сканирования config: %w", err)
 	}
 
 	versionsPath := filepath.Join(config.FilesPath, "versions")
@@ -448,8 +526,37 @@ func rescanConfig() error {
 		return fmt.Errorf("ошибка сохранения config.json: %w", err)
 	}
 
-	log.Printf("Пересчитано: %d модов, %d client_files", len(config.Mods), len(config.ClientFiles))
+	log.Printf("Пересчитано: %d модов, %d config_files, %d client_files", len(config.Mods), len(config.ConfigFiles), len(config.ClientFiles))
 	return nil
+}
+
+// scanConfig сканирует директорию config (конфиги модов)
+func scanConfig(configPath string, config *Config) error {
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		log.Printf("Директория config не найдена: %s", configPath)
+		return nil
+	}
+	return filepath.Walk(configPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return err
+		}
+		relPath, err := filepath.Rel(config.FilesPath, path)
+		if err != nil {
+			return nil
+		}
+		relPathNorm := strings.ReplaceAll(relPath, "\\", "/")
+		hash, err := calculateFileHash(path)
+		if err != nil {
+			return nil
+		}
+		// Name = полный путь (config/... или config/subdir/...), чтобы клиент сохранил в нужную подпапку
+		config.ConfigFiles = append(config.ConfigFiles, ClientFile{
+			Name: relPathNorm,
+			URL:  toStoragePath(relPathNorm),
+			Hash: hash,
+		})
+		return nil
+	})
 }
 
 // scanMods сканирует директорию с модами
