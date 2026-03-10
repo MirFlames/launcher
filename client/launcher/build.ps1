@@ -79,6 +79,23 @@ switch ($Target) {
         Write-Host "Building production binary..." -ForegroundColor Cyan
         # Дефолты из .env при сборке (API_BASE_URL, SERVER_HOST, SERVER_PORT)
         $apiUrl = if ($env:API_BASE_URL) { $env:API_BASE_URL } else { $env:BASE_URL }
+
+        # Обновляем иконку приложения для Windows: копируем PNG из frontend-ассетов
+        # в ожидаемое Wails-ом место build/appicon.png и удаляем устаревший icon.ico,
+        # чтобы он был пересобран из нового PNG.
+        $iconSource = Join-Path $PSScriptRoot "frontend\src\assets\images\appicon.png"
+        $iconTarget = Join-Path $PSScriptRoot "build\appicon.png"
+        if (Test-Path $iconSource) {
+            Write-Host "Updating app icon from $iconSource" -ForegroundColor Cyan
+            New-Item -ItemType Directory -Force -Path (Split-Path $iconTarget) | Out-Null
+            Copy-Item $iconSource $iconTarget -Force
+
+            $iconIco = Join-Path $PSScriptRoot "build\windows\icon.ico"
+            if (Test-Path $iconIco) {
+                Remove-Item $iconIco -Force
+            }
+        }
+
         $ldflags = "-s -w -H windowsgui"
         if ($apiUrl) { $ldflags += " -X main.buildDefaultApiBaseUrl=$apiUrl" }
         if ($env:SERVER_HOST) { $ldflags += " -X main.buildDefaultServerHost=$($env:SERVER_HOST)" }
