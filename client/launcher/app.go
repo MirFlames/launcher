@@ -23,6 +23,7 @@ func NewApp() *App {
 // so we can call the runtime methods
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+	logInfo("app", "startup завершён, контекст инициализирован")
 }
 
 // Greet returns a greeting for the given name
@@ -32,22 +33,35 @@ func (a *App) Greet(name string) string {
 
 // GetConfig возвращает текущие настройки
 func (a *App) GetConfig() (*Config, error) {
-	return LoadConfig()
+	cfg, err := LoadConfig()
+	if err != nil {
+		logError("config", "ошибка загрузки конфига: %v", err)
+	} else {
+		logInfo("config", "конфиг загружен: apiBase=%s server=%s:%d", cfg.ApiBaseUrl, cfg.ServerHost, cfg.ServerPort)
+	}
+	return cfg, err
 }
 
 // SaveConfig сохраняет настройки
 func (a *App) SaveConfig(cfg *Config) error {
-	return SaveConfig(cfg)
+	logInfo("config", "сохранение конфига: apiBase=%s server=%s:%d", cfg.ApiBaseUrl, cfg.ServerHost, cfg.ServerPort)
+	if err := SaveConfig(cfg); err != nil {
+		logError("config", "ошибка сохранения конфига: %v", err)
+		return err
+	}
+	return nil
 }
 
 // AuthIsAuthenticated возвращает true если есть валидная сессия
 func (a *App) AuthIsAuthenticated() (bool, error) {
 	s, err := authLoadSession()
 	if err != nil || s == nil {
+		logError("auth", "ошибка загрузки сессии: %v", err)
 		return false, err
 	}
 	valid := authCallVerify(s.Nickname, s.SessionUUID)
 	if valid != nil && !*valid {
+		logInfo("auth", "сессия невалидна по verify, удаляем локальную")
 		_ = authDeleteSession()
 		return false, nil
 	}
@@ -63,10 +77,12 @@ func (a *App) AuthGetSession() (*AuthSession, error) {
 func (a *App) AuthRefreshSession() (*AuthSession, error) {
 	s, err := authLoadSession()
 	if err != nil || s == nil {
+		logError("auth", "ошибка загрузки сессии: %v", err)
 		return nil, err
 	}
 	valid := authCallVerify(s.Nickname, s.SessionUUID)
 	if valid != nil && !*valid {
+		logInfo("auth", "сессия стала невалидной по verify, удаляем локальную")
 		_ = authDeleteSession()
 		return nil, nil
 	}
@@ -75,16 +91,20 @@ func (a *App) AuthRefreshSession() (*AuthSession, error) {
 
 // AuthStartLogin запускает процесс входа: init → открытие бота → polling. Блокирует до завершения или таймаута.
 func (a *App) AuthStartLogin() (*AuthSession, error) {
+	logInfo("auth", "запуск процесса входа через Telegram")
 	initResp, err := authCallInit()
 	if err != nil {
+		logError("auth", "ошибка authCallInit: %v", err)
 		return nil, err
 	}
 	authOpenBrowser(initResp.BotURL)
 	session, err := authPollUntilAuthenticated(initResp.Code)
 	if err != nil {
+		logError("auth", "ошибка ожидания аутентификации: %v", err)
 		return nil, err
 	}
 	if err := authSaveSession(session); err != nil {
+		logError("auth", "ошибка сохранения сессии: %v", err)
 		return nil, err
 	}
 	return session, nil
@@ -92,13 +112,19 @@ func (a *App) AuthStartLogin() (*AuthSession, error) {
 
 // AuthLogout удаляет сохранённую сессию
 func (a *App) AuthLogout() error {
-	return authDeleteSession()
+	logInfo("auth", "выход из аккаунта, удаляем сессию")
+	if err := authDeleteSession(); err != nil {
+		logError("auth", "ошибка удаления сессии: %v", err)
+		return err
+	}
+	return nil
 }
 
 // PlayMinecraft выполняет flow: JDK → modpack → downloads → launch.
 // Прогресс отправляется через событие "launch-progress" (stage, status, progress).
 // При успешном запуске Java-процесса окно скрывается; при выходе — показывается снова.
 func (a *App) PlayMinecraft() error {
+	logInfo("launch", "PlayMinecraft вызван")
 	onProgress := func(stage, status string, progress float64) {
 		if a.ctx != nil {
 			runtime.EventsEmit(a.ctx, "launch-progress", map[string]interface{}{
@@ -133,14 +159,25 @@ func (a *App) PlayMinecraft() error {
 		}
 		go WaitForProcessWindow(cmd, hide, show, onWaiting)
 	}
-	return LaunchMinecraft(onProgress, onProcessStarted)
+	if err := LaunchMinecraft(onProgress, onProcessStarted); err != nil {
+		logError("launch", "ошибка LaunchMinecraft: %v", err)
+		return err
+	}
+	logInfo("launch", "LaunchMinecraft завершился без ошибок (процесс Java запущен)")
+	return nil
 }
 
 // GetNewsFeed запрашивает новости у бэкенда (с проверкой сессии).
 func (a *App) GetNewsFeed() (*NewsFeedResponse, error) {
 	base := getApiBaseUrl()
 	session, _ := authLoadSession()
-	return fetchNewsFeed(base, session)
+	resp, err := fetchNewsFeed(base, session)
+	if err != nil {
+		logError("news", "ошибка загрузки новостей: %v", err)
+	} else {
+		logInfo("news", "новости загружены: authenticated=%v message=%q", resp.Authenticated, resp.Message)
+	}
+	return resp, err
 }
 
 // GetLauncherVersion возвращает текущую версию лаунчера для отображения в UI.

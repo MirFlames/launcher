@@ -284,15 +284,19 @@ func FetchServerVersion() (*ServerVersion, error) {
 	base := strings.TrimSuffix(cfg.ApiBaseUrl, "/")
 	url := base + "/api/version"
 
+	logInfo("version", "FetchServerVersion: url=%s", url)
 	resp, err := getWithRetry(url, httpTimeoutShort)
 	if err != nil {
+		logError("version", "FetchServerVersion request error: %v", err)
 		return nil, err
 	}
 	defer resp.Body.Close()
 	var v ServerVersion
 	if err := json.NewDecoder(resp.Body).Decode(&v); err != nil {
+		logError("version", "FetchServerVersion decode error: %v", err)
 		return nil, err
 	}
+	logInfo("version", "FetchServerVersion ok: mc=%s host=%s port=%s mods=%d", v.MinecraftVersion, v.ServerHost, v.ServerPort, len(v.Mods))
 	return &v, nil
 }
 

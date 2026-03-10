@@ -17,7 +17,7 @@ type LaunchProcessStarted func(cmd *exec.Cmd)
 // evaluateRules возвращает true если правила разрешают применение.
 // emptyOSMatchesAll: при true правило без OS считается совпавшим (для JVM args)
 func evaluateRules(rules []ModpackRule, currentPlatform string, emptyOSMatchesAll bool, featureChecker func(*ModpackRuleFeatures) bool) bool {
-	if rules == nil || len(rules) == 0 {
+	if len(rules) == 0 {
 		return true
 	}
 	for _, r := range rules {
@@ -170,11 +170,13 @@ func resolveGameArguments(modpack *ModpackConfig, ctx *LaunchContext) []string {
 }
 
 func ensurePrerequisites(launcherDir string, onProgress LaunchProgress) (javaExe string, cfg *Config, modpack *ModpackConfig, version *ServerVersion, err error) {
+	logInfo("launch", "ensurePrerequisites: launcherDir=%s", launcherDir)
 	if onProgress != nil {
 		onProgress("Подготовка", "Проверка JDK...", 0)
 	}
 	javaExe, err = EnsureJDK(launcherDir, onProgress)
 	if err != nil {
+		logError("launch", "EnsureJDK error: %v", err)
 		return "", nil, nil, nil, fmt.Errorf("JDK: %w", err)
 	}
 
@@ -185,8 +187,11 @@ func ensurePrerequisites(launcherDir string, onProgress LaunchProgress) (javaExe
 	if cfg == nil || cfg.ApiBaseUrl == "" {
 		return "", nil, nil, nil, fmt.Errorf("настройте URL API в настройках перед запуском")
 	}
+	logInfo("launch", "конфиг загружен в ensurePrerequisites: apiBase=%s server=%s:%d", cfg.ApiBaseUrl, cfg.ServerHost, cfg.ServerPort)
+
 	modpack, err = LoadModpack()
 	if err != nil {
+		logError("launch", "LoadModpack error: %v", err)
 		return "", nil, nil, nil, fmt.Errorf("modpack: %w", err)
 	}
 
@@ -194,15 +199,22 @@ func ensurePrerequisites(launcherDir string, onProgress LaunchProgress) (javaExe
 		onProgress("Модпак", "Проверка версии...", 0)
 	}
 	version, _ = FetchServerVersion()
+	if version != nil {
+		logInfo("launch", "FetchServerVersion: mc=%s host=%s port=%s mods=%d", version.MinecraftVersion, version.ServerHost, version.ServerPort, len(version.Mods))
+	} else {
+		logInfo("launch", "FetchServerVersion: версия сервера не получена (nil)")
+	}
 	return javaExe, cfg, modpack, version, nil
 }
 
 func ensureGameFiles(gameDir string, version *ServerVersion, modpack *ModpackConfig, cfg *Config, onProgress LaunchProgress) error {
+	logInfo("launch", "ensureGameFiles: gameDir=%s", gameDir)
 	if onProgress != nil {
 		onProgress("Загрузка модов", "Скачивание модов...", 0)
 	}
 	modsDownloaded, err := EnsureMods(gameDir, version, onProgress)
 	if err != nil {
+		logError("launch", "EnsureMods error: %v", err)
 		return fmt.Errorf("моды: %w", err)
 	}
 
@@ -210,11 +222,13 @@ func ensureGameFiles(gameDir string, version *ServerVersion, modpack *ModpackCon
 		onProgress("Загрузка конфигов модов", "Скачивание конфигов...", 0)
 	}
 	if err := EnsureModConfigs(gameDir, version, onProgress); err != nil {
+		logError("launch", "EnsureModConfigs error: %v", err)
 		return fmt.Errorf("конфиги модов: %w", err)
 	}
 
 	if version != nil && modsDownloaded && cfg != nil && cfg.SyncClientSettings {
 		if err := EnsureClientFiles(gameDir, version, onProgress); err != nil {
+			logError("launch", "EnsureClientFiles error: %v", err)
 			return fmt.Errorf("client_files: %w", err)
 		}
 	}
@@ -223,9 +237,11 @@ func ensureGameFiles(gameDir string, version *ServerVersion, modpack *ModpackCon
 		onProgress("Загрузка файлов", "Библиотеки и client.jar...", 0)
 	}
 	if err := EnsureLibraries(gameDir, modpack, onProgress); err != nil {
+		logError("launch", "EnsureLibraries error: %v", err)
 		return fmt.Errorf("библиотеки: %w", err)
 	}
 	if err := EnsureClientJar(gameDir, modpack, onProgress); err != nil {
+		logError("launch", "EnsureClientJar error: %v", err)
 		return fmt.Errorf("client.jar: %w", err)
 	}
 
@@ -357,6 +373,7 @@ func LaunchMinecraft(onProgress LaunchProgress, onProcessStarted LaunchProcessSt
 	if err != nil {
 		return fmt.Errorf("папка лаунчера: %w", err)
 	}
+	logInfo("launch", "LaunchMinecraft: launcherDir=%s", launcherDir)
 
 	javaExe, cfg, modpack, version, err := ensurePrerequisites(launcherDir, onProgress)
 	if err != nil {
@@ -408,5 +425,11 @@ func LaunchMinecraft(onProgress LaunchProgress, onProcessStarted LaunchProcessSt
 		return fmt.Errorf("mainClass не указан в modpack.json")
 	}
 
-	return spawnMinecraftProcess(javaExe, launcherDir, jvmArgs, mainClass, gameArgs, onProgress, onProcessStarted)
+	err = spawnMinecraftProcess(javaExe, launcherDir, jvmArgs, mainClass, gameArgs, onProgress, onProcessStarted)
+	if err != nil {
+		logError("launch", "spawnMinecraftProcess error: %v", err)
+		return err
+	}
+	logInfo("launch", "spawnMinecraftProcess успешно запустил Java-процесс")
+	return nil
 }

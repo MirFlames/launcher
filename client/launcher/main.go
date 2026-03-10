@@ -13,6 +13,9 @@ import (
 var assets embed.FS
 
 func main() {
+	initLogger()
+	logInfo("main", "Запуск лаунчера версии %s", LauncherVersion)
+
 	// Create an instance of the app structure
 	app := NewApp()
 
@@ -40,6 +43,7 @@ func main() {
 	})
 
 	if err != nil {
+		logError("main", "Ошибка запуска Wails: %v", err)
 		println("Error:", err.Error())
 	}
 }

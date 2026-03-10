@@ -105,6 +105,7 @@ func fetchUpdateManifest() (*LauncherUpdateManifest, error) {
 	if manifest.Version == "" || manifest.DownloadURL == "" || manifest.SHA256 == "" {
 		return nil, fmt.Errorf("манифест обновления неполон")
 	}
+	logInfo("update", "получен манифест обновления: version=%s mandatory=%v url=%s size=%d", manifest.Version, manifest.Mandatory, manifest.DownloadURL, manifest.Size)
 	lastUpdateManifest = &manifest
 	return &manifest, nil
 }
@@ -210,6 +211,7 @@ func downloadUpdateBinary(manifest *LauncherUpdateManifest) (string, error) {
 		out.Close()
 		// Архив больше не нужен.
 		_ = os.Remove(downloadPath)
+		logInfo("update", "обновление распаковано из zip: %s → %s", downloadPath, exePath)
 		return exePath, nil
 	}
 
@@ -217,6 +219,7 @@ func downloadUpdateBinary(manifest *LauncherUpdateManifest) (string, error) {
 	if runtime.GOOS != "windows" {
 		_ = os.Chmod(downloadPath, 0755)
 	}
+	logInfo("update", "обновление скачано как exe: %s", downloadPath)
 	return downloadPath, nil
 }
 
@@ -225,6 +228,7 @@ func downloadUpdateBinary(manifest *LauncherUpdateManifest) (string, error) {
 func (a *App) CheckLauncherUpdate() (*LauncherUpdateInfo, error) {
 	manifest, err := fetchUpdateManifest()
 	if err != nil {
+		logError("update", "ошибка получения манифеста: %v", err)
 		return nil, err
 	}
 	if manifest == nil {
@@ -244,6 +248,7 @@ func (a *App) CheckLauncherUpdate() (*LauncherUpdateInfo, error) {
 		SHA256:         manifest.SHA256,
 		CurrentVersion: LauncherVersion,
 	}
+	logInfo("update", "доступно обновление: current=%s latest=%s mandatory=%v", LauncherVersion, info.Version, info.Mandatory)
 	return info, nil
 }
 
@@ -251,10 +256,12 @@ func (a *App) CheckLauncherUpdate() (*LauncherUpdateInfo, error) {
 // На Windows выполняется обновление "на месте", чтобы ярлыки, указывающие на launcher.exe,
 // продолжали открывать обновлённую версию.
 func (a *App) ApplyLauncherUpdate() error {
+	logInfo("update", "начало ApplyLauncherUpdate, текущая версия: %s", LauncherVersion)
 	manifest := lastUpdateManifest
 	if manifest == nil {
 		m, err := fetchUpdateManifest()
 		if err != nil {
+			logError("update", "ошибка fetchUpdateManifest в ApplyLauncherUpdate: %v", err)
 			return err
 		}
 		if m == nil {
@@ -280,16 +287,20 @@ func (a *App) ApplyLauncherUpdate() error {
 
 		dir := filepath.Dir(currentExe)
 		newPath := filepath.Join(dir, "launcher.new.exe")
+		logInfo("update", "windows update: currentExe=%s newPath=%s", currentExe, newPath)
 
 		// Скачиваем и, при необходимости, распаковываем обновление.
 		exePath, err := downloadUpdateBinary(manifest)
 		if err != nil {
+			logError("update", "ошибка downloadUpdateBinary: %v", err)
 			return err
 		}
 		// Перекладываем exe рядом с текущим бинарником в launcher.new.exe
 		if err := copyFile(exePath, newPath); err != nil {
+			logError("update", "ошибка copyFile(%s → %s): %v", exePath, newPath, err)
 			return fmt.Errorf("копирование обновления: %w", err)
 		}
+		logInfo("update", "обновление скопировано в %s", newPath)
 
 		// Создаём bat-скрипт, который в фоне дождётся освобождения файла, заменит бинарник и перезапустит лаунчер.
 		scriptPath := filepath.Join(os.TempDir(), "launcher-update-"+manifest.Version+".bat")
@@ -304,8 +315,10 @@ start "" "%LAUNCHER_OLD%"
 endlocal
 `
 		if err := os.WriteFile(scriptPath, []byte(scriptContents), 0600); err != nil {
+			logError("update", "ошибка записи bat-скрипта %s: %v", scriptPath, err)
 			return fmt.Errorf("не удалось создать скрипт обновления: %w", err)
 		}
+		logInfo("update", "bat-скрипт обновления записан: %s", scriptPath)
 
 		cmd := exec.Command("cmd.exe", "/C", "start", "/MIN", scriptPath) // #nosec G204 — управляемые пути
 		cmd.Env = append(os.Environ(),
@@ -313,8 +326,10 @@ endlocal
 			"LAUNCHER_NEW="+newPath,
 		)
 		if err := cmd.Start(); err != nil {
+			logError("update", "ошибка запуска bat-скрипта обновления: %v", err)
 			return fmt.Errorf("не удалось запустить процесс обновления: %w", err)
 		}
+		logInfo("update", "процесс обновления запущен в фоне, текущий процесс завершится вручную")
 		// Дальнейшее завершение и рестарт лаунчера обрабатываются внешним процессом.
 		return nil
 	}
@@ -322,12 +337,15 @@ endlocal
 	// Для других платформ оставляем прежнее поведение: запускаем загруженный бинарник.
 	path, err := downloadUpdateBinary(manifest)
 	if err != nil {
+		logError("update", "ошибка downloadUpdateBinary (non-windows): %v", err)
 		return err
 	}
 	cmd := exec.Command(path) // #nosec G204 — путь контролируется подписанным манифестом
 	if err := cmd.Start(); err != nil {
+		logError("update", "ошибка запуска внешнего установщика: %v", err)
 		return fmt.Errorf("не удалось запустить установщик обновления: %w", err)
 	}
+	logInfo("update", "внешний установщик обновления запущен: %s", path)
 	return nil
 }
 

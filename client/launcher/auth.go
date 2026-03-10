@@ -37,6 +37,7 @@ func getAuthFilePath() (string, error) {
 func authLoadSession() (*AuthSession, error) {
 	path, err := getAuthFilePath()
 	if err != nil {
+		logError("auth", "getAuthFilePath error: %v", err)
 		return nil, err
 	}
 	data, err := os.ReadFile(path)
@@ -44,6 +45,7 @@ func authLoadSession() (*AuthSession, error) {
 		if os.IsNotExist(err) {
 			return nil, nil
 		}
+		logError("auth", "os.ReadFile auth session error: %v", err)
 		return nil, err
 	}
 	var m map[string]string
@@ -81,6 +83,7 @@ func authSaveSession(s *AuthSession) error {
 	if err != nil {
 		return err
 	}
+	logInfo("auth", "сохраняем сессию в %s", path)
 	return os.WriteFile(path, data, authFileMode)
 }
 
