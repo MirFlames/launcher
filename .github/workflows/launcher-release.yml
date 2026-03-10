@@ -18,6 +18,39 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Derive version and mandatory flag from tag
+        id: version
+        shell: bash
+        env:
+          REPO: ${{ github.repository }}
+        run: |
+          RAW_TAG="${TAG_NAME}"
+          CLEAN="${RAW_TAG#v}"
+          CLEAN="${CLEAN%-critical}"
+          echo "version=$CLEAN" >> $GITHUB_OUTPUT
+
+          if [[ "$RAW_TAG" == *"-critical" ]]; then
+            echo "mandatory=true" >> $GITHUB_OUTPUT
+          else
+            echo "mandatory=false" >> $GITHUB_OUTPUT
+          fi
+
+          # Последняя критичная версия — через GitHub API (надёжно на Windows runner).
+          LAST_CRIT=""
+          TAGS_JSON=$(gh api "repos/${REPO}/git/refs/tags?per_page=100" 2>/dev/null || true)
+          if [[ -n "$TAGS_JSON" ]]; then
+            LAST_CRIT=$(echo "$TAGS_JSON" | grep -oE '"ref"[[:space:]]*:[[:space:]]*"refs/tags/[^"]+' | sed 's/.*refs\/tags\///' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+-critical$' | sed 's/-critical$//' | sort -V | tail -1 || true)
+          fi
+          if [[ -n "$LAST_CRIT" ]]; then
+            CLEAN_CRIT="${LAST_CRIT#v}"
+            echo "min_mandatory_version=$CLEAN_CRIT" >> $GITHUB_OUTPUT
+            echo "min_mandatory_version=$CLEAN_CRIT"
+          fi
+          echo "last_critical_version: $LAST_CRIT"
 
       - name: Restore code signing cert (optional)
         shell: pwsh
@@ -54,29 +87,6 @@ jobs:
       - name: Install frontend deps
         working-directory: client/launcher/frontend
         run: npm ci
-
-      - name: Derive version and mandatory flag from tag
-        id: version
-        shell: bash
-        run: |
-          RAW_TAG="${TAG_NAME}"
-          CLEAN="${RAW_TAG#v}"
-          CLEAN="${CLEAN%-critical}"
-          echo "version=$CLEAN" >> $GITHUB_OUTPUT
-
-          if [[ "$RAW_TAG" == *"-critical" ]]; then
-            echo "mandatory=true" >> $GITHUB_OUTPUT
-          else
-            echo "mandatory=false" >> $GITHUB_OUTPUT
-          fi
-
-          # Определяем последнюю критичную версию (vX.Y.Z-critical) — она будет минимальной обязательной.
-          LAST_CRIT=$(git tag --list 'v*-critical' --sort=-v:refname | head -n1 || echo "")
-          if [[ -n "$LAST_CRIT" ]]; then
-            CLEAN_CRIT="${LAST_CRIT#v}"
-            CLEAN_CRIT="${CLEAN_CRIT%-critical}"
-            echo "min_mandatory_version=$CLEAN_CRIT" >> $GITHUB_OUTPUT
-          fi
 
       - name: Build launcher via build.ps1
         working-directory: client/launcher
