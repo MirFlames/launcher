@@ -70,6 +70,14 @@ jobs:
             echo "mandatory=false" >> $GITHUB_OUTPUT
           fi
 
+          # Определяем последнюю критичную версию (vX.Y.Z-critical) — она будет минимальной обязательной.
+          LAST_CRIT=$(git tag --list 'v*-critical' --sort=-v:refname | head -n1 || echo "")
+          if [[ -n "$LAST_CRIT" ]]; then
+            CLEAN_CRIT="${LAST_CRIT#v}"
+            CLEAN_CRIT="${CLEAN_CRIT%-critical}"
+            echo "min_mandatory_version=$CLEAN_CRIT" >> $GITHUB_OUTPUT
+          fi
+
       - name: Build launcher via build.ps1
         working-directory: client/launcher
         shell: pwsh
@@ -116,6 +124,7 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           MANDATORY="${{ steps.version.outputs.mandatory }}"
+          MIN_MANDATORY="${{ steps.version.outputs.min_mandatory_version }}"
           CHANGELOG="${{ steps.changelog.outputs.changelog }}"
           SHA256="${LAUNCHER_SHA256}"
 
@@ -123,6 +132,7 @@ jobs:
           {
             "version": "${VERSION}",
             "mandatory": ${MANDATORY},
+            "min_mandatory_version": "${MIN_MANDATORY}",
             "changelog": "$(echo "$CHANGELOG" | sed 's/"/\\"/g')",
             "download_url": "https://github.com/${{ github.repository }}/releases/download/${TAG_NAME}/launcher.zip",
             "size": 0,
