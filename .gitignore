@@ -1,17 +1,8 @@
-# Gradle
-.gradle/
-build/
-bin/
-
 # IDE
 .idea/
 *.iml
 *.ipr
 *.iws
-
-# Build reports
-**/reports/
-**/problems-report.html
 
 # OS
 .DS_Store
@@ -26,9 +17,3 @@ Thumbs.db
 .cursor/
 
 .env
-backend/config.json
-
-# mc-proxy bans (локальные данные)
-mc-proxy/data/
-# mc-proxy binary (собирается на хосте)
-mc-proxy/mc-proxy
