@@ -170,23 +170,23 @@ func handleNews(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Авторизован — возвращаем кэшированную новость из Telegram API (channel_post)
-		// Зафиксируем версию лаунчера у игрока (для админки), если она передана.
-		if launcherVersion != "" {
-			sessionUpdateLauncherVersion(sessionUUID, launcherVersion)
-			entry.LauncherVersion = launcherVersion
-		}
+	// Зафиксируем версию лаунчера у игрока (для админки), если она передана.
+	if launcherVersion != "" {
+		sessionUpdateLauncherVersion(sessionUUID, launcherVersion)
+		entry.LauncherVersion = launcherVersion
+	}
 
-		// Если это очень старая версия лаунчера (до ветки 1.x), поверх новостей показываем предупреждение.
-		if isLegacyLauncherVersion(launcherVersion) {
-			resp.Message = "Ваша версия лаунчера устарела. Пожалуйста, скачайте новый лаунчер по ссылке из Telegram-канала сервера."
-			w.Header().Set("Content-Type", "application/json; charset=utf-8")
-			_ = json.NewEncoder(w).Encode(resp)
-			return
-		}
+	// Если это очень старая версия лаунчера (до ветки 1.x), поверх новостей показываем предупреждение.
+	if isLegacyLauncherVersion(launcherVersion) {
+		resp.Message = "Ваша версия лаунчера устарела! Пожалуйста, скачай новый лаунчер по ссылке: https://github.com/MirFlames/launcher/releases/latest/download/launcher.zip . После скачивания закрой лаунчер и замени launcher.exe на новый из архива. При проблемах с установкой новой версии обратись к админу."
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		_ = json.NewEncoder(w).Encode(resp)
+		return
+	}
 
-		latestChannelPost.RLock()
-		item := latestChannelPost.item
-		latestChannelPost.RUnlock()
+	latestChannelPost.RLock()
+	item := latestChannelPost.item
+	latestChannelPost.RUnlock()
 
 	if item == nil {
 		resp.Message = "В канале пока нет новостей. Добавьте бота администратором в канал."

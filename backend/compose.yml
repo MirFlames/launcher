@@ -9,6 +9,7 @@ services:
       dockerfile: Dockerfile
     ports:
       - "${PORT:-58293}:8080"
+      - "8090:8090"
     environment:
       BASE_URL: ${BASE_URL}
       PORT: "58293"

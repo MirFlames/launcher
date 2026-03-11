@@ -18,5 +18,9 @@ RUN mkdir -p /data /app/files
 WORKDIR /data
 ENV FILES_PATH=/app/files
 
+# Основной HTTP API
 EXPOSE 8080
+# Админ-панель (если нужно прокинуть наружу)
+EXPOSE 8090
+
 ENTRYPOINT ["/app/launcher-backend"]
