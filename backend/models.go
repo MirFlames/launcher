@@ -95,10 +95,12 @@ type AuthCompleteRequest struct {
 
 // ValidSessionEntry — запись в valid-sessions.json (никнейм, Telegram ID и логин)
 type ValidSessionEntry struct {
-	Nickname          string `json:"nickname"`
-	TelegramID        int64  `json:"telegram_id"`
-	TelegramUsername   string `json:"telegram_username"`
-	LastLoginAt       *int64 `json:"last_login_at,omitempty"`       // Unix timestamp, nil если ещё не заходил
-	NotifyThreshold   int    `json:"notify_threshold,omitempty"`    // при каком онлайне уведомлять (default 2)
-	LastNotifiedAt    *int64 `json:"last_notified_at,omitempty"`    // когда последний раз отправлено уведомление
+	Nickname        string `json:"nickname"`
+	TelegramID      int64  `json:"telegram_id"`
+	TelegramUsername string `json:"telegram_username"`
+	// Версия лаунчера, с которой игрок последний раз заходил (может быть пустой для старых клиентов)
+	LauncherVersion string `json:"launcher_version,omitempty"`
+	LastLoginAt     *int64 `json:"last_login_at,omitempty"`     // Unix timestamp, nil если ещё не заходил
+	NotifyThreshold int    `json:"notify_threshold,omitempty"`  // при каком онлайне уведомлять (default 2)
+	LastNotifiedAt  *int64 `json:"last_notified_at,omitempty"`  // когда последний раз отправлено уведомление
 }

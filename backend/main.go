@@ -222,6 +222,8 @@ func main() {
 		log.Printf("[Hashes] Хэши обновлены при старте")
 	}
 
+	startAdminServer()
+
 	log.Printf("Сервер запущен")
 	log.Printf("Файлы раздаются из: %s", config.FilesPath)
 	log.Fatal(http.ListenAndServe(":8080", metricsMiddleware(log404Middleware(mux))))

@@ -37,6 +37,41 @@ var (
 	}{}
 )
 
+// isLegacyLauncherVersion возвращает true для старых лаунчеров без автообновления.
+// Считаем устаревшими все версии строго меньше 1.0.5 (включая 0.x и ранние 1.0.x).
+func isLegacyLauncherVersion(v string) bool {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return false
+	}
+	parts := strings.SplitN(v, ".", 3)
+	if len(parts) < 2 {
+		return false
+	}
+	major, minor, patch := 0, 0, 0
+	_, _ = fmt.Sscanf(parts[0], "%d", &major)
+	_, _ = fmt.Sscanf(parts[1], "%d", &minor)
+	if len(parts) == 3 {
+		_, _ = fmt.Sscanf(parts[2], "%d", &patch)
+	}
+	// target = 1.0.5
+	if major < 1 {
+		return true
+	}
+	if major > 1 {
+		return false
+	}
+	// major == 1
+	if minor < 0 {
+		return true
+	}
+	if minor > 0 {
+		return false
+	}
+	// 1.0.x
+	return patch < 5
+}
+
 // LoadNewsCache загружает кэш новостей из файла (вызывается при старте бэкенда).
 func LoadNewsCache() {
 	data, err := os.ReadFile(newsCacheFile)
@@ -120,7 +155,7 @@ func handleNews(w http.ResponseWriter, r *http.Request) {
 	newsRequestsTotal.Inc()
 	nickname := strings.TrimSpace(r.URL.Query().Get("nickname"))
 	sessionUUID := strings.TrimSpace(r.URL.Query().Get("session_uuid"))
-	_ = r.URL.Query().Get("launcher_version") // принимаем, пока не используется (для уведомлений о версии)
+	launcherVersion := strings.TrimSpace(r.URL.Query().Get("launcher_version"))
 
 	entry, ok := sessionGetByUUID(sessionUUID)
 	authenticated := ok && entry.Nickname == nickname
@@ -135,9 +170,23 @@ func handleNews(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Авторизован — возвращаем кэшированную новость из Telegram API (channel_post)
-	latestChannelPost.RLock()
-	item := latestChannelPost.item
-	latestChannelPost.RUnlock()
+		// Зафиксируем версию лаунчера у игрока (для админки), если она передана.
+		if launcherVersion != "" {
+			sessionUpdateLauncherVersion(sessionUUID, launcherVersion)
+			entry.LauncherVersion = launcherVersion
+		}
+
+		// Если это очень старая версия лаунчера (до ветки 1.x), поверх новостей показываем предупреждение.
+		if isLegacyLauncherVersion(launcherVersion) {
+			resp.Message = "Ваша версия лаунчера устарела. Пожалуйста, скачайте новый лаунчер по ссылке из Telegram-канала сервера."
+			w.Header().Set("Content-Type", "application/json; charset=utf-8")
+			_ = json.NewEncoder(w).Encode(resp)
+			return
+		}
+
+		latestChannelPost.RLock()
+		item := latestChannelPost.item
+		latestChannelPost.RUnlock()
 
 	if item == nil {
 		resp.Message = "В канале пока нет новостей. Добавьте бота администратором в канал."

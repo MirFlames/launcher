@@ -123,18 +123,24 @@ func sessionExportForProxy() []SessionExportEntry {
 func sessionGetByUUID(sessionUUID string) (ValidSessionEntry, bool) {
 	sessionsDBMu.RLock()
 	defer sessionsDBMu.RUnlock()
-	var nickname, telegramUsername string
+	var nickname, telegramUsername, launcherVersion string
 	var telegramID int64
 	var lastLoginAt, lastNotifiedAt sql.NullInt64
 	var notifyThreshold int
 	err := sessionsDB.QueryRow(
-		`SELECT nickname, telegram_id, telegram_username, last_login_at, COALESCE(notify_threshold, 2), last_notified_at FROM sessions WHERE session_uuid = ?`,
+		`SELECT nickname, telegram_id, telegram_username, launcher_version, last_login_at, COALESCE(notify_threshold, 2), last_notified_at FROM sessions WHERE session_uuid = ?`,
 		sessionUUID,
-	).Scan(&nickname, &telegramID, &telegramUsername, &lastLoginAt, &notifyThreshold, &lastNotifiedAt)
+	).Scan(&nickname, &telegramID, &telegramUsername, &launcherVersion, &lastLoginAt, &notifyThreshold, &lastNotifiedAt)
 	if err == sql.ErrNoRows || err != nil {
 		return ValidSessionEntry{}, false
 	}
-	entry := ValidSessionEntry{Nickname: nickname, TelegramID: telegramID, TelegramUsername: telegramUsername, NotifyThreshold: notifyThreshold}
+	entry := ValidSessionEntry{
+		Nickname:        nickname,
+		TelegramID:      telegramID,
+		TelegramUsername: telegramUsername,
+		LauncherVersion: launcherVersion,
+		NotifyThreshold: notifyThreshold,
+	}
 	if lastLoginAt.Valid {
 		entry.LastLoginAt = &lastLoginAt.Int64
 	}
@@ -150,18 +156,24 @@ func sessionGetByTelegramID(telegramID int64) (ValidSessionEntry, bool) {
 	}
 	sessionsDBMu.RLock()
 	defer sessionsDBMu.RUnlock()
-	var nickname, telegramUsername string
+	var nickname, telegramUsername, launcherVersion string
 	var tid int64
 	var lastLoginAt, lastNotifiedAt sql.NullInt64
 	var notifyThreshold int
 	err := sessionsDB.QueryRow(
-		`SELECT nickname, telegram_id, telegram_username, last_login_at, COALESCE(notify_threshold, 2), last_notified_at FROM sessions WHERE telegram_id = ? LIMIT 1`,
+		`SELECT nickname, telegram_id, telegram_username, launcher_version, last_login_at, COALESCE(notify_threshold, 2), last_notified_at FROM sessions WHERE telegram_id = ? LIMIT 1`,
 		telegramID,
-	).Scan(&nickname, &tid, &telegramUsername, &lastLoginAt, &notifyThreshold, &lastNotifiedAt)
+	).Scan(&nickname, &tid, &telegramUsername, &launcherVersion, &lastLoginAt, &notifyThreshold, &lastNotifiedAt)
 	if err == sql.ErrNoRows || err != nil {
 		return ValidSessionEntry{}, false
 	}
-	entry := ValidSessionEntry{Nickname: nickname, TelegramID: tid, TelegramUsername: telegramUsername, NotifyThreshold: notifyThreshold}
+	entry := ValidSessionEntry{
+		Nickname:        nickname,
+		TelegramID:      tid,
+		TelegramUsername: telegramUsername,
+		LauncherVersion: launcherVersion,
+		NotifyThreshold: notifyThreshold,
+	}
 	if lastLoginAt.Valid {
 		entry.LastLoginAt = &lastLoginAt.Int64
 	}
@@ -179,8 +191,15 @@ func sessionSave(sessionUUID string, entry ValidSessionEntry) error {
 		threshold = 2
 	}
 	_, err := sessionsDB.Exec(
-		`INSERT OR REPLACE INTO sessions (session_uuid, nickname, telegram_id, telegram_username, last_login_at, notify_threshold, last_notified_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		sessionUUID, entry.Nickname, entry.TelegramID, entry.TelegramUsername, nullInt64(entry.LastLoginAt), threshold, nullInt64(entry.LastNotifiedAt),
+		`INSERT OR REPLACE INTO sessions (session_uuid, nickname, telegram_id, telegram_username, launcher_version, last_login_at, notify_threshold, last_notified_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		sessionUUID,
+		entry.Nickname,
+		entry.TelegramID,
+		entry.TelegramUsername,
+		entry.LauncherVersion,
+		nullInt64(entry.LastLoginAt),
+		threshold,
+		nullInt64(entry.LastNotifiedAt),
 	)
 	return err
 }
@@ -196,6 +215,15 @@ func sessionUpdateLastLogin(sessionUUID string) {
 	sessionsDBMu.Lock()
 	defer sessionsDBMu.Unlock()
 	sessionsDB.Exec(`UPDATE sessions SET last_login_at = ? WHERE session_uuid = ?`, time.Now().Unix(), sessionUUID)
+}
+
+func sessionUpdateLauncherVersion(sessionUUID, launcherVersion string) {
+	if sessionUUID == "" || launcherVersion == "" {
+		return
+	}
+	sessionsDBMu.Lock()
+	defer sessionsDBMu.Unlock()
+	sessionsDB.Exec(`UPDATE sessions SET launcher_version = ? WHERE session_uuid = ?`, launcherVersion, sessionUUID)
 }
 
 func sessionDeleteByUUID(sessionUUID string) {
@@ -221,11 +249,11 @@ func sessionDeleteByTelegramID(telegramID int64) {
 
 // NotificationEntry — запись для фонового воркера уведомлений
 type NotificationEntry struct {
-	TelegramID     int64
-	Nickname       string
-	LastLoginAt    *int64
+	TelegramID      int64
+	Nickname        string
+	LastLoginAt     *int64
 	NotifyThreshold int
-	LastNotifiedAt *int64
+	LastNotifiedAt  *int64
 }
 
 func sessionGetAllForNotifications() []NotificationEntry {
@@ -252,6 +280,40 @@ func sessionGetAllForNotifications() []NotificationEntry {
 		}
 		if lastNotifiedAt.Valid {
 			e.LastNotifiedAt = &lastNotifiedAt.Int64
+		}
+		result = append(result, e)
+	}
+	return result
+}
+
+type AdminSessionEntry struct {
+	Nickname        string
+	LauncherVersion string
+	LastLoginAt     *int64
+}
+
+func sessionGetAllForAdmin() []AdminSessionEntry {
+	sessionsDBMu.RLock()
+	defer sessionsDBMu.RUnlock()
+	rows, err := sessionsDB.Query(
+		`SELECT nickname, launcher_version, last_login_at FROM sessions ORDER BY nickname COLLATE NOCASE`,
+	)
+	if err != nil {
+		log.Printf("[Sessions] sessionGetAllForAdmin: %v", err)
+		return nil
+	}
+	defer rows.Close()
+	var result []AdminSessionEntry
+	for rows.Next() {
+		var e AdminSessionEntry
+		var lastLoginAt sql.NullInt64
+		if err := rows.Scan(&e.Nickname, &e.LauncherVersion, &lastLoginAt); err != nil {
+			log.Printf("[Sessions] scan admin: %v", err)
+			continue
+		}
+		if lastLoginAt.Valid {
+			v := lastLoginAt.Int64
+			e.LastLoginAt = &v
 		}
 		result = append(result, e)
 	}
