@@ -209,21 +209,31 @@ func ensurePrerequisites(launcherDir string, onProgress LaunchProgress) (javaExe
 
 func ensureGameFiles(gameDir string, version *ServerVersion, modpack *ModpackConfig, cfg *Config, onProgress LaunchProgress) error {
 	logInfo("launch", "ensureGameFiles: gameDir=%s", gameDir)
-	if onProgress != nil {
-		onProgress("Загрузка модов", "Скачивание модов...", 0)
-	}
-	modsDownloaded, err := EnsureMods(gameDir, version, onProgress)
-	if err != nil {
-		logError("launch", "EnsureMods error: %v", err)
-		return fmt.Errorf("моды: %w", err)
-	}
 
-	if onProgress != nil && version != nil && len(version.ConfigFiles) > 0 {
-		onProgress("Загрузка конфигов модов", "Скачивание конфигов...", 0)
-	}
-	if err := EnsureModConfigs(gameDir, version, onProgress); err != nil {
-		logError("launch", "EnsureModConfigs error: %v", err)
-		return fmt.Errorf("конфиги модов: %w", err)
+	serverHost, _ := resolveServerConnection(cfg, version)
+	skipModSync := serverHost == "127.0.0.1" || serverHost == "localhost"
+
+	var modsDownloaded bool
+	if !skipModSync {
+		if onProgress != nil {
+			onProgress("Загрузка модов", "Скачивание модов...", 0)
+		}
+		var err error
+		modsDownloaded, err = EnsureMods(gameDir, version, onProgress)
+		if err != nil {
+			logError("launch", "EnsureMods error: %v", err)
+			return fmt.Errorf("моды: %w", err)
+		}
+
+		if onProgress != nil && version != nil && len(version.ConfigFiles) > 0 {
+			onProgress("Загрузка конфигов модов", "Скачивание конфигов...", 0)
+		}
+		if err := EnsureModConfigs(gameDir, version, onProgress); err != nil {
+			logError("launch", "EnsureModConfigs error: %v", err)
+			return fmt.Errorf("конфиги модов: %w", err)
+		}
+	} else {
+		logInfo("launch", "пропуск синхронизации модов: сервер %s (локальный)", serverHost)
 	}
 
 	if version != nil && modsDownloaded && cfg != nil && cfg.SyncClientSettings {
@@ -419,6 +429,15 @@ func LaunchMinecraft(onProgress LaunchProgress, onProcessStarted LaunchProcessSt
 		}
 		gameArgs = append(gameArgs, "--server", serverHost, "--port", serverPort)
 	}
+
+	backendURL := getApiBaseUrl()
+	if backendURL != "" {
+		gameArgs = append(gameArgs, "--backend-url", backendURL)
+		jvmArgs = append(jvmArgs, "-Dminecraft.api.session.host="+backendURL)
+		logInfo("launch", "добавлен аргумент запуска: --backend-url=%s", backendURL)
+	}
+
+	gameArgs = append(gameArgs, "--session-uuid", ctx.AuthUUID)
 
 	mainClass := modpack.MainClass
 	if mainClass == "" {
