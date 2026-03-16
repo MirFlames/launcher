@@ -139,12 +139,16 @@ jobs:
           CHANGELOG="${{ steps.changelog.outputs.changelog }}"
           SHA256="${LAUNCHER_SHA256}"
 
+          # Безопасно экранируем многострочный changelog в JSON-строку.
+          # jq -Rs . превращает stdin в корректный JSON string (с \n, кавычками и т.п.).
+          ESCAPED_CHANGELOG=$(printf '%s' "$CHANGELOG" | jq -Rs .)
+
           cat > launcher-update.json <<EOF
           {
             "version": "${VERSION}",
             "mandatory": ${MANDATORY},
             "min_mandatory_version": "${MIN_MANDATORY}",
-            "changelog": "$(echo "$CHANGELOG" | sed 's/"/\\"/g')",
+            "changelog": ${ESCAPED_CHANGELOG},
             "download_url": "https://github.com/${{ github.repository }}/releases/download/${TAG_NAME}/launcher.zip",
             "size": 0,
             "sha256": "${SHA256}"

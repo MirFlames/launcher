@@ -93,27 +93,27 @@ cd client/launcher
 
 1. **Поднять версию** в `client/launcher/version.go`:
    ```go
-   const LauncherVersion = "1.0.26"  // следующая версия
+   const LauncherVersion = "1.0.27"  // следующая версия
    ```
 
 2. **Закоммитить и запушить main:**
    ```powershell
    git add client/launcher/version.go
-   git commit -m "Версия 1.0.26"
+   git commit -m "Версия 1.0.27"
    git push origin main
    ```
 
 3. **Создать тег и запушить:**
-   - **Обычный (опциональный) релиз:** тег `vX.Y.Z` (например `v1.0.26`).
-   - **Критический (обязательный) релиз:** тег `vX.Y.Z-critical` (например `v1.0.26-critical`).
+   - **Обычный (опциональный) релиз:** тег `vX.Y.Z` (например `v1.0.27`).
+   - **Критический (обязательный) релиз:** тег `vX.Y.Z-critical` (например `v1.0.27-critical`).
    ```powershell
-   git tag v1.0.26
-   git push origin v1.0.26
+   git tag v1.0.27
+   git push origin v1.0.27
    ```
    Или для критического:
    ```powershell
-   git tag v1.0.26-critical
-   git push origin v1.0.26-critical
+   git tag v1.0.27-critical
+   git push origin v1.0.27-critical
    ```
 
 4. Дождаться завершения workflow в **Actions**. В релизе появятся: `launcher.zip`, `launcher-update.json`, `launcher-update.json.sig`.
