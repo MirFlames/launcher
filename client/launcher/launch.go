@@ -313,8 +313,18 @@ func buildLaunchContext(session *AuthSession, versionID, gameDir string) *Launch
 	authToken := "0"
 	if session != nil && session.isValid() {
 		playerName = session.Nickname
-		authUUID = session.SessionUUID
-		authToken = session.SessionUUID
+		// Online-mode: selectedProfile.id должен быть offline-UUID от ника; accessToken — session_uuid.
+		// Если profile_id отсутствует (старый launcher-auth.json), вычисляем offline UUID здесь — иначе join на сервере падает.
+		pid := strings.ReplaceAll(strings.TrimSpace(session.ProfileID), "-", "")
+		if len(pid) != 32 {
+			pid = offlineUUIDNoDashes(session.Nickname)
+		}
+		tok := strings.TrimSpace(session.AccessToken)
+		if tok == "" {
+			tok = session.SessionUUID
+		}
+		authUUID = pid
+		authToken = tok
 	}
 	return &LaunchContext{
 		GameDirectory:   base,
@@ -433,8 +443,22 @@ func LaunchMinecraft(onProgress LaunchProgress, onProcessStarted LaunchProcessSt
 	backendURL := getApiBaseUrl()
 	if backendURL != "" {
 		gameArgs = append(gameArgs, "--backend-url", backendURL)
-		jvmArgs = append(jvmArgs, "-Dminecraft.api.session.host="+backendURL)
-		logInfo("launch", "добавлен аргумент запуска: --backend-url=%s", backendURL)
+		// authlib-injector используется как javaagent c фиксированным Yggdrasil-сервером
+		yggBase := strings.TrimSuffix(backendURL, "/") + "/yggdrasil"
+		jvmArgs = append(jvmArgs, "-javaagent:authlib-injector.jar="+yggBase)
+		if cfg != nil && cfg.SocksProxyHost != "" && cfg.SocksProxyPort > 0 {
+			jvmArgs = append(jvmArgs, "-Dauthlibinjector.mojangProxy=socks://"+cfg.SocksProxyHost+":"+fmt.Sprintf("%d", cfg.SocksProxyPort))
+			logInfo("launch", "включен SOCKS прокси для authlib-injector: %s:%d", cfg.SocksProxyHost, cfg.SocksProxyPort)
+		}
+		// системные свойства, аналогичные прототипу на Python
+		if session != nil {
+			jvmArgs = append(jvmArgs,
+				"-Dlauncher.backend.url="+backendURL,
+				"-Dlauncher.nickname="+session.Nickname,
+				"-Dlauncher.session.uuid="+session.SessionUUID,
+			)
+		}
+		logInfo("launch", "добавлены аргументы запуска для backend=%s (authlib-injector)", backendURL)
 	}
 
 	gameArgs = append(gameArgs, "--session-uuid", ctx.AuthUUID)

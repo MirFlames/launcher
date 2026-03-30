@@ -1,6 +1,10 @@
 package main
 
 import (
+	"bytes"
+	"crypto/md5"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -16,10 +20,15 @@ import (
 
 const authSessionFilename = "launcher-auth.json"
 
-// AuthSession — сессия аутентификации
+// AuthSession — сессия аутентификации (Telegram + Yggdrasil/access token)
 type AuthSession struct {
-	Nickname   string `json:"nickname"`
+	Nickname    string `json:"nickname"`
 	SessionUUID string `json:"session_uuid"`
+
+	// Поля ниже нужны для интеграции с Yggdrasil/authlib-injector.
+	AccessToken string `json:"access_token,omitempty"`
+	ProfileID   string `json:"profile_id,omitempty"`
+	ProfileName string `json:"profile_name,omitempty"`
 }
 
 func (s *AuthSession) isValid() bool {
@@ -57,7 +66,13 @@ func authLoadSession() (*AuthSession, error) {
 	if nickname == "" || sessionUUID == "" {
 		return nil, nil
 	}
-	s := &AuthSession{Nickname: strings.TrimSpace(nickname), SessionUUID: strings.TrimSpace(sessionUUID)}
+	s := &AuthSession{
+		Nickname:    strings.TrimSpace(nickname),
+		SessionUUID: strings.TrimSpace(sessionUUID),
+		AccessToken: strings.TrimSpace(m["access_token"]),
+		ProfileID:   strings.TrimSpace(m["profile_id"]),
+		ProfileName: strings.TrimSpace(m["profile_name"]),
+	}
 	if !s.isValid() {
 		return nil, nil
 	}
@@ -76,10 +91,20 @@ func authSaveSession(s *AuthSession) error {
 	if err := os.MkdirAll(dir, dirMode); err != nil {
 		return err
 	}
-	data, err := json.MarshalIndent(map[string]string{
+	payload := map[string]string{
 		"nickname":     s.Nickname,
 		"session_uuid": s.SessionUUID,
-	}, "", "  ")
+	}
+	if s.AccessToken != "" {
+		payload["access_token"] = s.AccessToken
+	}
+	if s.ProfileID != "" {
+		payload["profile_id"] = s.ProfileID
+	}
+	if s.ProfileName != "" {
+		payload["profile_name"] = s.ProfileName
+	}
+	data, err := json.MarshalIndent(payload, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -122,6 +147,25 @@ type authCheckResp struct {
 
 type authVerifyResp struct {
 	Valid bool `json:"valid"`
+}
+
+// yggAuthRequest/yggAuthResponse — структуры для Yggdrasil authenticate.
+type yggAuthRequest struct {
+	Username     string `json:"username"`
+	SessionToken string `json:"sessionToken"`
+	ClientToken  string `json:"clientToken"`
+	RequestUser  bool   `json:"requestUser"`
+}
+
+type yggProfile struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+type yggAuthResponse struct {
+	AccessToken     string      `json:"accessToken"`
+	ClientToken     string      `json:"clientToken"`
+	SelectedProfile *yggProfile `json:"selectedProfile"`
 }
 
 func authCallInit() (*authInitResp, error) {
@@ -187,6 +231,87 @@ func authCallVerify(nickname, sessionUUID string) *bool {
 		return nil
 	}
 	return &r.Valid
+}
+
+// generateClientToken генерирует произвольный UUID-подобный токен клиента (32 hex-символа).
+// offlineUUIDNoDashes возвращает offline UUID профиля Minecraft (без дефисов), как UUID.nameUUIDFromBytes("OfflinePlayer:"+nick).
+func offlineUUIDNoDashes(nickname string) string {
+	name := strings.TrimSpace(nickname)
+	if name == "" {
+		return ""
+	}
+	sum := md5.Sum([]byte("OfflinePlayer:" + name))
+	b := sum[:]
+	b[6] = (b[6] & 0x0f) | 0x30
+	b[8] = (b[8] & 0x3f) | 0x80
+	return hex.EncodeToString(b)
+}
+
+func generateClientToken() string {
+	buf := make([]byte, 16)
+	if _, err := rand.Read(buf); err != nil {
+		return ""
+	}
+	return hex.EncodeToString(buf)
+}
+
+// authYggdrasilAuthenticate выполняет POST backendURL/yggdrasil/authserver/authenticate
+// и дополняет AuthSession полями accessToken/selectedProfile.
+func authYggdrasilAuthenticate(s *AuthSession) error {
+	if s == nil || !s.isValid() {
+		return fmt.Errorf("пустая или невалидная сессия для Yggdrasil")
+	}
+	base := getApiBaseUrl()
+	if base == "" {
+		return fmt.Errorf("настройте URL API в настройках")
+	}
+	endpoint := strings.TrimSuffix(base, "/") + "/yggdrasil/authserver/authenticate"
+
+	clientToken := generateClientToken()
+	if clientToken == "" {
+		return fmt.Errorf("не удалось сгенерировать clientToken")
+	}
+
+	reqBody := &yggAuthRequest{
+		Username:     s.Nickname,
+		SessionToken: s.SessionUUID,
+		ClientToken:  clientToken,
+		RequestUser:  false,
+	}
+	data, err := json.Marshal(reqBody)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("POST", endpoint, bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		logError("auth", "yggdrasil authenticate error: status=%d body=%s", resp.StatusCode, string(body))
+		return fmt.Errorf("ошибка Yggdrasil authenticate: %s", resp.Status)
+	}
+
+	var yggResp yggAuthResponse
+	if err := json.NewDecoder(resp.Body).Decode(&yggResp); err != nil {
+		return err
+	}
+	if yggResp.AccessToken == "" || yggResp.SelectedProfile == nil {
+		return fmt.Errorf("неполный ответ Yggdrasil authenticate")
+	}
+
+	s.AccessToken = yggResp.AccessToken
+	s.ProfileID = yggResp.SelectedProfile.ID
+	s.ProfileName = yggResp.SelectedProfile.Name
+	return nil
 }
 
 func authOpenBrowser(urlStr string) {

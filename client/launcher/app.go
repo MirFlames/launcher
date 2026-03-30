@@ -110,6 +110,13 @@ func (a *App) AuthStartLogin() (*AuthSession, error) {
 		logError("auth", "ошибка ожидания аутентификации: %v", err)
 		return nil, err
 	}
+	// После получения session_uuid вызываем Yggdrasil authenticate и
+	// сохраняем accessToken/профиль в launcher-auth.json.
+	if err := authYggdrasilAuthenticate(session); err != nil {
+		logError("auth", "ошибка Yggdrasil authenticate: %v", err)
+		// при ошибке не сохраняем сессию
+		return nil, err
+	}
 	if err := authSaveSession(session); err != nil {
 		logError("auth", "ошибка сохранения сессии: %v", err)
 		return nil, err

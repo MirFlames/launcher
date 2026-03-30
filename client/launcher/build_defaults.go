@@ -6,6 +6,8 @@ var (
 	buildDefaultApiBaseUrl string // API_BASE_URL — URL бэкенда
 	buildDefaultServerHost string // SERVER_HOST — IP/хост Minecraft-сервера
 	buildDefaultServerPort string // SERVER_PORT — порт Minecraft-сервера
+	buildDefaultSocksProxyHost string // SOCKS_PROXY_HOST — SOCKS5 прокси для Java (authlib/backend)
+	buildDefaultSocksProxyPort string // SOCKS_PROXY_PORT — порт SOCKS5 прокси
 
 	// Настройки механизма автообновления лаунчера.
 	// Рекомендуется задавать через -ldflags или .env, чтобы не хардкодить в репозитории.

@@ -77,7 +77,7 @@ switch ($Target) {
     }
     "build" {
         Write-Host "Building production binary..." -ForegroundColor Cyan
-        # Дефолты из .env при сборке (API_BASE_URL, SERVER_HOST, SERVER_PORT)
+        # Дефолты из .env при сборке (API_BASE_URL, SERVER_HOST, SERVER_PORT, SOCKS_PROXY_HOST, SOCKS_PROXY_PORT)
         $apiUrl = if ($env:API_BASE_URL) { $env:API_BASE_URL } else { $env:BASE_URL }
 
         # Обновляем иконку приложения для Windows: копируем PNG из frontend-ассетов
@@ -100,6 +100,8 @@ switch ($Target) {
         if ($apiUrl) { $ldflags += " -X main.buildDefaultApiBaseUrl=$apiUrl" }
         if ($env:SERVER_HOST) { $ldflags += " -X main.buildDefaultServerHost=$($env:SERVER_HOST)" }
         if ($env:SERVER_PORT) { $ldflags += " -X main.buildDefaultServerPort=$($env:SERVER_PORT)" }
+        if ($env:SOCKS_PROXY_HOST) { $ldflags += " -X main.buildDefaultSocksProxyHost=$($env:SOCKS_PROXY_HOST)" }
+        if ($env:SOCKS_PROXY_PORT) { $ldflags += " -X main.buildDefaultSocksProxyPort=$($env:SOCKS_PROXY_PORT)" }
         if ($env:UPDATE_MANIFEST_URL) { $ldflags += " -X main.buildUpdateManifestURL=$($env:UPDATE_MANIFEST_URL)" }
         if ($env:UPDATE_SIGNATURE_URL) { $ldflags += " -X main.buildUpdateSignatureURL=$($env:UPDATE_SIGNATURE_URL)" }
         if ($env:UPDATE_PUBLIC_KEY_HEX) { $ldflags += " -X main.buildUpdatePublicKeyHex=$($env:UPDATE_PUBLIC_KEY_HEX)" }

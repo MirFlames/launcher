@@ -3,6 +3,9 @@ export namespace main {
 	export class AuthSession {
 	    nickname: string;
 	    session_uuid: string;
+	    access_token?: string;
+	    profile_id?: string;
+	    profile_name?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new AuthSession(source);
@@ -12,12 +15,17 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.nickname = source["nickname"];
 	        this.session_uuid = source["session_uuid"];
+	        this.access_token = source["access_token"];
+	        this.profile_id = source["profile_id"];
+	        this.profile_name = source["profile_name"];
 	    }
 	}
 	export class Config {
 	    apiBaseUrl: string;
 	    server_host: string;
 	    server_port: number;
+	    socks_proxy_host: string;
+	    socks_proxy_port: number;
 	    sync_client_settings: boolean;
 	
 	    static createFrom(source: any = {}) {
@@ -29,6 +37,8 @@ export namespace main {
 	        this.apiBaseUrl = source["apiBaseUrl"];
 	        this.server_host = source["server_host"];
 	        this.server_port = source["server_port"];
+	        this.socks_proxy_host = source["socks_proxy_host"];
+	        this.socks_proxy_port = source["socks_proxy_port"];
 	        this.sync_client_settings = source["sync_client_settings"];
 	    }
 	}

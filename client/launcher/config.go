@@ -15,6 +15,10 @@ type Config struct {
 	ServerHost string `json:"server_host"`
 	// ServerPort — порт сервера Minecraft (передаётся в --port)
 	ServerPort int `json:"server_port"`
+	// SocksProxyHost — SOCKS5 прокси для Java-запросов (authlib-injector и запросы к backend)
+	SocksProxyHost string `json:"socks_proxy_host"`
+	// SocksProxyPort — порт SOCKS5 прокси
+	SocksProxyPort int `json:"socks_proxy_port"`
 	// SyncClientSettings — синхронизировать settings-файлы клиента (например options.txt)
 	SyncClientSettings bool `json:"sync_client_settings"`
 }
@@ -72,6 +76,14 @@ func LoadConfig() (*Config, error) {
 			cfg.ServerPort = p
 		}
 	}
+	if cfg.SocksProxyHost == "" && buildDefaultSocksProxyHost != "" {
+		cfg.SocksProxyHost = buildDefaultSocksProxyHost
+	}
+	if cfg.SocksProxyPort <= 0 && buildDefaultSocksProxyPort != "" {
+		if p, err := parseInt(buildDefaultSocksProxyPort); err == nil && p > 0 {
+			cfg.SocksProxyPort = p
+		}
+	}
 	return &cfg, nil
 }
 
@@ -98,10 +110,18 @@ func defaultConfig() *Config {
 			port = p
 		}
 	}
+	socksPort := 0
+	if buildDefaultSocksProxyPort != "" {
+		if p, err := parseInt(buildDefaultSocksProxyPort); err == nil && p > 0 {
+			socksPort = p
+		}
+	}
 	return &Config{
 		ApiBaseUrl:         buildDefaultApiBaseUrl,
 		ServerHost:         buildDefaultServerHost,
 		ServerPort:         port,
+		SocksProxyHost:     buildDefaultSocksProxyHost,
+		SocksProxyPort:     socksPort,
 		SyncClientSettings: true,
 	}
 }
