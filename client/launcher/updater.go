@@ -19,14 +19,14 @@ import (
 // LauncherUpdateManifest описывает формат JSON-манифеста обновления,
 // лежащего в релизах GitHub (launcher-update.json).
 type LauncherUpdateManifest struct {
-	Version            string `json:"version"`
-	Mandatory          bool   `json:"mandatory"`
+	Version             string `json:"version"`
+	Mandatory           bool   `json:"mandatory"`
 	MinMandatoryVersion string `json:"min_mandatory_version,omitempty"`
-	Changelog          string `json:"changelog"`
-	DownloadURL        string `json:"download_url"`
-	Size               int64  `json:"size"`
-	SHA256             string `json:"sha256"`
-	PublishedAt        string `json:"published_at,omitempty"`
+	Changelog           string `json:"changelog"`
+	DownloadURL         string `json:"download_url"`
+	Size                int64  `json:"size"`
+	SHA256              string `json:"sha256"`
+	PublishedAt         string `json:"published_at,omitempty"`
 }
 
 // LauncherUpdateInfo — урезанная версия манифеста для фронтенда.
@@ -381,4 +381,3 @@ func copyFile(src, dst string) error {
 	}
 	return out.Sync()
 }
-
