@@ -12,19 +12,25 @@ interface SettingsModalProps {
 export function SettingsModal({isOpen, onClose, onSaved}: SettingsModalProps) {
     const [loadedConfig, setLoadedConfig] = useState<main.Config | null>(null);
     const [syncClientSettings, setSyncClientSettings] = useState(true);
+    const [apiBaseUrl, setApiBaseUrl] = useState('');
     const [serverHost, setServerHost] = useState('');
     const [serverPort, setServerPort] = useState('');
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
     const [launcherVersion, setLauncherVersion] = useState<string>('');
+    const [devUnlocked, setDevUnlocked] = useState(false);
+    const [devSecretTaps, setDevSecretTaps] = useState(0);
 
     useEffect(() => {
         if (isOpen) {
+            setDevUnlocked(false);
+            setDevSecretTaps(0);
             GetConfig()
                 .then((cfg) => {
                     if (cfg) {
                         setLoadedConfig(cfg);
                         setSyncClientSettings(cfg.sync_client_settings ?? true);
+                        setApiBaseUrl((cfg.apiBaseUrl || '').trim());
                         setServerHost((cfg.server_host || '').trim());
                         const p = cfg.server_port;
                         setServerPort(p != null && p > 0 ? String(p) : '');
@@ -39,6 +45,14 @@ export function SettingsModal({isOpen, onClose, onSaved}: SettingsModalProps) {
 
     function handleSave() {
         setError('');
+        const api = apiBaseUrl.trim();
+        if (api !== '') {
+            const low = api.toLowerCase();
+            if (!low.startsWith('http://') && !low.startsWith('https://')) {
+                setError('Backend API: укажите URL с http:// или https://.');
+                return;
+            }
+        }
         const host = serverHost.trim();
         const portStr = serverPort.trim();
         let portNum = 0;
@@ -61,6 +75,7 @@ export function SettingsModal({isOpen, onClose, onSaved}: SettingsModalProps) {
         const cfg = main.Config.createFrom({
             ...(loadedConfig || {}),
             sync_client_settings: syncClientSettings,
+            apiBaseUrl: api,
             server_host: host,
             server_port: portNum,
         });
@@ -73,6 +88,17 @@ export function SettingsModal({isOpen, onClose, onSaved}: SettingsModalProps) {
             .finally(() => setSaving(false));
     }
 
+    function handleLauncherVersionSecretTap() {
+        setDevSecretTaps((n) => {
+            const next = n + 1;
+            if (next >= 5) {
+                setDevUnlocked(true);
+                return 0;
+            }
+            return next;
+        });
+    }
+
     if (!isOpen) return null;
 
     return (
@@ -83,30 +109,7 @@ export function SettingsModal({isOpen, onClose, onSaved}: SettingsModalProps) {
                     <button className="modal-close" onClick={onClose}>×</button>
                 </div>
                 <div className="modal-body">
-                    <div className="modal-dev-warning" role="status">
-                        <strong>Только для разработки.</strong> Ниже можно переопределить адрес игрового сервера для автоподключения. Для обычной игры оставьте поля пустыми — используются данные с бэкенда.
-                    </div>
-                    <label htmlFor="settings-server-host">IP или хост сервера</label>
-                    <input
-                        id="settings-server-host"
-                        type="text"
-                        autoComplete="off"
-                        placeholder="например 127.0.0.1"
-                        value={serverHost}
-                        onChange={(e) => setServerHost(e.target.value)}
-                    />
-                    <label htmlFor="settings-server-port">Порт сервера</label>
-                    <input
-                        id="settings-server-port"
-                        className="modal-input-port"
-                        type="text"
-                        inputMode="numeric"
-                        autoComplete="off"
-                        placeholder="например 25565"
-                        value={serverPort}
-                        onChange={(e) => setServerPort(e.target.value)}
-                    />
-                    <label className="modal-checkbox">
+                    <label className="modal-checkbox modal-checkbox-first">
                         <input
                             type="checkbox"
                             checked={syncClientSettings}
@@ -117,12 +120,58 @@ export function SettingsModal({isOpen, onClose, onSaved}: SettingsModalProps) {
                     <p className="modal-hint">
                         Если включено, settings-файлы клиента (например options.txt) применяются только при докачке модов с сервера.
                     </p>
+
+                    {devUnlocked && (
+                        <details className="modal-dev-submenu" open>
+                            <summary className="modal-dev-submenu-summary">Для разработчиков</summary>
+                            <div className="modal-dev-submenu-body">
+                                <div className="modal-dev-warning" role="status">
+                                    <strong>Только для разработки.</strong>
+                                    Здесь задаётся адрес бэкенда и переопределение игрового сервера для автоподключения. Для обычной игры не открывайте этот раздел или оставьте значения по умолчанию из сборки.
+                                </div>
+                                <label htmlFor="settings-api-base-url">Backend API</label>
+                                <input
+                                    id="settings-api-base-url"
+                                    type="url"
+                                    autoComplete="off"
+                                    value={apiBaseUrl}
+                                    onChange={(e) => setApiBaseUrl(e.target.value)}
+                                />
+                                <label htmlFor="settings-server-host">IP или хост игрового сервера</label>
+                                <input
+                                    id="settings-server-host"
+                                    type="text"
+                                    autoComplete="off"
+                                    placeholder="например 127.0.0.1"
+                                    value={serverHost}
+                                    onChange={(e) => setServerHost(e.target.value)}
+                                />
+                                <label htmlFor="settings-server-port">Порт игрового сервера</label>
+                                <input
+                                    id="settings-server-port"
+                                    className="modal-input-port"
+                                    type="text"
+                                    inputMode="numeric"
+                                    autoComplete="off"
+                                    placeholder="например 25565"
+                                    value={serverPort}
+                                    onChange={(e) => setServerPort(e.target.value)}
+                                />
+                            </div>
+                        </details>
+                    )}
                     {error && <p className="modal-error">{error}</p>}
                 </div>
                 {launcherVersion && (
                     <div className="modal-version-row">
                         <span className="modal-version-label">Версия лаунчера</span>
-                        <span className="modal-version-value">{launcherVersion}</span>
+                        <button
+                            type="button"
+                            className="modal-version-value modal-version-secret-trigger"
+                            onClick={handleLauncherVersionSecretTap}
+                        >
+                            {launcherVersion}
+                        </button>
                     </div>
                 )}
                 <div className="modal-footer">
