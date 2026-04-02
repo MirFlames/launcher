@@ -59,6 +59,27 @@
   border-radius: 4px;
 }
 
+.modal-dev-warning {
+  font-size: 13px;
+  line-height: 1.5;
+  color: rgba(251, 191, 36, 0.95);
+  background: rgba(251, 191, 36, 0.08);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  margin-bottom: 20px;
+}
+
+.modal-dev-warning strong {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+.modal-input-port {
+  max-width: 140px;
+}
+
 .modal-body {
   padding: 24px;
 }
