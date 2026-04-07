@@ -34,8 +34,8 @@ WizardSmallImageFile=assets\wizard-small.bmp
 Name: "russian"; MessagesFile: "compiler:Languages\Russian.isl"
 
 [Tasks]
-Name: "desktopicon"; Description: "Создать ярлык на рабочем столе"; GroupDescription: "Дополнительно:"; Flags: checked
-Name: "launchapp"; Description: "Запустить Minecraft"; GroupDescription: "Дополнительно:"; Flags: checked
+Name: "desktopicon"; Description: "Создать ярлык на рабочем столе"; GroupDescription: "Дополнительно:"
+Name: "launchapp"; Description: "Запустить Minecraft"; GroupDescription: "Дополнительно:"
 
 [Files]
 Source: "..\build\bin\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
