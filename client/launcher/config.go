@@ -21,6 +21,10 @@ type Config struct {
 	SocksProxyPort int `json:"socks_proxy_port"`
 	// SyncClientSettings — синхронизировать settings-файлы клиента (например options.txt)
 	SyncClientSettings bool `json:"sync_client_settings"`
+	// AuthlibInjectorDebug — добавить -Dauthlibinjector.debug=verbose,authlib при запуске Java
+	AuthlibInjectorDebug bool `json:"authlib_injector_debug"`
+	// SkipServerModSync — не скачивать моды и конфиги модов с бэкенда (разработка)
+	SkipServerModSync bool `json:"skip_server_mod_sync"`
 }
 
 const configFilename = "launcher-config.json"

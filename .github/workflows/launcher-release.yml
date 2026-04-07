@@ -102,6 +102,37 @@ jobs:
         run: |
           ./build.ps1 build
 
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup -y --no-progress
+
+      - name: Build Windows installer (Inno Setup)
+        working-directory: client/launcher/installer
+        shell: pwsh
+        env:
+          APP_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          ./generate-wizard-images.ps1
+          $iscc = Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { throw "ISCC not found: $iscc" }
+          & $iscc "launcher.iss" "/DAppVersion=$env:APP_VERSION"
+
+      - name: Sign installer (optional)
+        shell: pwsh
+        run: |
+          $setup = "Launcher-Setup-${{ steps.version.outputs.version }}.exe"
+          if (-not (Test-Path $setup)) { throw "Installer not found: $setup" }
+          if (-not $env:CODESIGN_PFX) {
+            Write-Host "No code signing cert; skipping setup.exe signing." -ForegroundColor Yellow
+            exit 0
+          }
+          $SignToolPath = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" -ErrorAction SilentlyContinue |
+            Sort-Object { $_.Directory.Name } -Descending |
+            Select-Object -First 1 -ExpandProperty FullName
+          if (-not $SignToolPath) { $SignToolPath = "signtool" }
+          & $SignToolPath sign /f $env:CODESIGN_PFX /p $env:CODESIGN_PASSWORD /tr http://timestamp.digicert.com /td sha256 /fd sha256 $setup
+          if ($LASTEXITCODE -ne 0) { throw "Signing setup failed" }
+
       - name: Prepare release artifacts (zip)
         shell: pwsh
         run: |
@@ -175,8 +206,10 @@ jobs:
           TITLE="Launcher ${VERSION_TAG}"
           NOTES="${{ steps.changelog.outputs.changelog }}"
 
+          SETUP="Launcher-Setup-${{ steps.version.outputs.version }}.exe"
           gh release create "$VERSION_TAG" \
             "launcher.zip" \
+            "$SETUP" \
             "launcher-update.json" \
             "launcher-update.json.sig" \
             --title "$TITLE" \

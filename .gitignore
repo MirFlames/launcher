@@ -17,3 +17,6 @@ Thumbs.db
 .cursor/
 
 .env
+
+# Сгенерированные картинки мастера Inno (пересоздаются generate-wizard-images.ps1)
+client/launcher/installer/assets/*.bmp

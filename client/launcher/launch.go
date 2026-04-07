@@ -211,7 +211,7 @@ func ensureGameFiles(gameDir string, version *ServerVersion, modpack *ModpackCon
 	logInfo("launch", "ensureGameFiles: gameDir=%s", gameDir)
 
 	serverHost, _ := resolveServerConnection(cfg, version)
-	skipModSync := serverHost == "127.0.0.1" || serverHost == "localhost"
+	skipModSync := (cfg != nil && cfg.SkipServerModSync) || serverHost == "127.0.0.1" || serverHost == "localhost"
 
 	var modsDownloaded bool
 	if !skipModSync {
@@ -233,7 +233,11 @@ func ensureGameFiles(gameDir string, version *ServerVersion, modpack *ModpackCon
 			return fmt.Errorf("конфиги модов: %w", err)
 		}
 	} else {
-		logInfo("launch", "пропуск синхронизации модов: сервер %s (локальный)", serverHost)
+		if cfg != nil && cfg.SkipServerModSync {
+			logInfo("launch", "пропуск синхронизации модов: включено в настройках разработчика")
+		} else {
+			logInfo("launch", "пропуск синхронизации модов: сервер %s (локальный)", serverHost)
+		}
 	}
 
 	if version != nil && modsDownloaded && cfg != nil && cfg.SyncClientSettings {
@@ -446,6 +450,10 @@ func LaunchMinecraft(onProgress LaunchProgress, onProcessStarted LaunchProcessSt
 		// authlib-injector используется как javaagent c фиксированным Yggdrasil-сервером
 		yggBase := strings.TrimSuffix(backendURL, "/") + "/yggdrasil"
 		jvmArgs = append(jvmArgs, "-javaagent:authlib-injector.jar="+yggBase)
+		if cfg != nil && cfg.AuthlibInjectorDebug {
+			jvmArgs = append(jvmArgs, "-Dauthlibinjector.debug=verbose,authlib")
+			logInfo("launch", "включён authlib-injector debug (verbose,authlib)")
+		}
 		if cfg != nil && cfg.SocksProxyHost != "" && cfg.SocksProxyPort > 0 {
 			jvmArgs = append(jvmArgs, "-Dauthlibinjector.mojangProxy=socks://"+cfg.SocksProxyHost+":"+fmt.Sprintf("%d", cfg.SocksProxyPort))
 			logInfo("launch", "включен SOCKS прокси для authlib-injector: %s:%d", cfg.SocksProxyHost, cfg.SocksProxyPort)

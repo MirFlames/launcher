@@ -20,6 +20,8 @@ export function SettingsModal({isOpen, onClose, onSaved}: SettingsModalProps) {
     const [launcherVersion, setLauncherVersion] = useState<string>('');
     const [devUnlocked, setDevUnlocked] = useState(false);
     const [devSecretTaps, setDevSecretTaps] = useState(0);
+    const [authlibInjectorDebug, setAuthlibInjectorDebug] = useState(false);
+    const [skipServerModSync, setSkipServerModSync] = useState(false);
 
     useEffect(() => {
         if (isOpen) {
@@ -34,6 +36,8 @@ export function SettingsModal({isOpen, onClose, onSaved}: SettingsModalProps) {
                         setServerHost((cfg.server_host || '').trim());
                         const p = cfg.server_port;
                         setServerPort(p != null && p > 0 ? String(p) : '');
+                        setAuthlibInjectorDebug(!!cfg.authlib_injector_debug);
+                        setSkipServerModSync(!!cfg.skip_server_mod_sync);
                     }
                 })
                 .catch(() => {});
@@ -78,6 +82,8 @@ export function SettingsModal({isOpen, onClose, onSaved}: SettingsModalProps) {
             apiBaseUrl: api,
             server_host: host,
             server_port: portNum,
+            authlib_injector_debug: authlibInjectorDebug,
+            skip_server_mod_sync: skipServerModSync,
         });
         SaveConfig(cfg)
             .then(() => {
@@ -157,6 +163,28 @@ export function SettingsModal({isOpen, onClose, onSaved}: SettingsModalProps) {
                                     value={serverPort}
                                     onChange={(e) => setServerPort(e.target.value)}
                                 />
+                                <label className="modal-checkbox modal-checkbox-dev">
+                                    <input
+                                        type="checkbox"
+                                        checked={skipServerModSync}
+                                        onChange={(e) => setSkipServerModSync(e.target.checked)}
+                                    />
+                                    <span>Не синхронизировать моды с сервером</span>
+                                </label>
+                                <p className="modal-hint modal-hint-dev">
+                                    Не скачивать моды и конфиги модов из API; используйте локальную папку mods.
+                                </p>
+                                <label className="modal-checkbox modal-checkbox-dev">
+                                    <input
+                                        type="checkbox"
+                                        checked={authlibInjectorDebug}
+                                        onChange={(e) => setAuthlibInjectorDebug(e.target.checked)}
+                                    />
+                                    <span>Отладка authlib-injector (-Dauthlibinjector.debug=verbose,authlib)</span>
+                                </label>
+                                <p className="modal-hint modal-hint-dev">
+                                    Подробный лог в консоли Java; для диагностики сети и Yggdrasil.
+                                </p>
                             </div>
                         </details>
                     )}
