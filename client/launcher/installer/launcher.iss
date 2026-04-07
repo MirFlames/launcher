@@ -6,6 +6,7 @@
 #endif
 
 #define MyAppName "OpenSource Minecraft Launcher"
+#define MyAppFolderName "Minecraft Online"
 #define MyAppPublisher "Dmitry Miroshnikov"
 #define MyAppExeName "launcher.exe"
 
@@ -14,9 +15,9 @@ AppId={{8B3C9F2A-1D4E-4F6A-9C2B-7E8D5A1F0B3C}}
 AppName={#MyAppName}
 AppVersion={#AppVersion}
 AppPublisher={#MyAppPublisher}
-DefaultDirName={sd}\Games\OpenSourceMinecraftLauncher
+DefaultDirName={sd}\Games\MinecraftOnline
 DisableProgramGroupPage=no
-DefaultGroupName={#MyAppName}
+DefaultGroupName={#MyAppFolderName}
 OutputDir=..\..\..\
 OutputBaseFilename=Launcher-Setup-{#AppVersion}
 Compression=lzma2
@@ -35,7 +36,6 @@ Name: "russian"; MessagesFile: "compiler:Languages\Russian.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "Создать ярлык на рабочем столе"; GroupDescription: "Дополнительно:"
-Name: "launchapp"; Description: "Запустить Minecraft"; GroupDescription: "Дополнительно:"
 
 [Files]
 Source: "..\build\bin\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
@@ -45,4 +45,4 @@ Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{commondesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "Запустить лаунчер после установки"; Flags: nowait postinstall skipifsilent; Tasks: launchapp
+Filename: "{app}\{#MyAppExeName}"; Description: "Запустить лаунчер после установки"; Flags: nowait postinstall skipifsilent

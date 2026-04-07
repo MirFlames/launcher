@@ -55,14 +55,21 @@ jobs:
 
       - name: Restore code signing cert (optional)
         shell: pwsh
+        env:
+          PFX_B64: ${{ secrets.CODESIGN_PFX_BASE64 }}
+          PFX_PASS: ${{ secrets.CODESIGN_PASSWORD }}
         run: |
-          if ('${{ secrets.CODESIGN_PFX_BASE64 }}') {
+          $utf8 = [System.Text.UTF8Encoding]::new($false)
+          if ($env:PFX_B64) {
             Write-Host "Restoring code signing certificate from secret..."
-            $bytes = [Convert]::FromBase64String('${{ secrets.CODESIGN_PFX_BASE64 }}')
+            $bytes = [Convert]::FromBase64String($env:PFX_B64)
             $path = "$env:USERPROFILE\codesign-ci.pfx"
             [IO.File]::WriteAllBytes($path, $bytes)
-            "CODESIGN_PFX=$path" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-            "CODESIGN_PASSWORD=${{ secrets.CODESIGN_PASSWORD }}" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            [System.IO.File]::AppendAllText($env:GITHUB_ENV, "CODESIGN_PFX=$path`n", $utf8)
+            if ($env:PFX_PASS) {
+              $p = $env:PFX_PASS -replace "`n|`r", ''
+              [System.IO.File]::AppendAllText($env:GITHUB_ENV, "CODESIGN_PASSWORD=$p`n", $utf8)
+            }
           } else {
             Write-Host "CODESIGN_PFX_BASE64 secret not set. Skipping signing in CI." -ForegroundColor Yellow
           }
@@ -118,9 +125,12 @@ jobs:
           & $iscc "launcher.iss" "/DAppVersion=$env:APP_VERSION"
 
       - name: Sign installer (optional)
+        working-directory: ${{ github.workspace }}
         shell: pwsh
+        env:
+          SETUP_VER: ${{ steps.version.outputs.version }}
         run: |
-          $setup = "Launcher-Setup-${{ steps.version.outputs.version }}.exe"
+          $setup = Join-Path $env:GITHUB_WORKSPACE "Launcher-Setup-$($env:SETUP_VER).exe"
           if (-not (Test-Path $setup)) { throw "Installer not found: $setup" }
           if (-not $env:CODESIGN_PFX) {
             Write-Host "No code signing cert; skipping setup.exe signing." -ForegroundColor Yellow
@@ -129,9 +139,10 @@ jobs:
           $SignToolPath = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" -ErrorAction SilentlyContinue |
             Sort-Object { $_.Directory.Name } -Descending |
             Select-Object -First 1 -ExpandProperty FullName
-          if (-not $SignToolPath) { $SignToolPath = "signtool" }
+          if (-not $SignToolPath) { $SignToolPath = "signtool.exe" }
+          Write-Host "Signing $setup with $SignToolPath"
           & $SignToolPath sign /f $env:CODESIGN_PFX /p $env:CODESIGN_PASSWORD /tr http://timestamp.digicert.com /td sha256 /fd sha256 $setup
-          if ($LASTEXITCODE -ne 0) { throw "Signing setup failed" }
+          if ($LASTEXITCODE -ne 0) { throw "Signing setup failed with exit $LASTEXITCODE" }
 
       - name: Prepare release artifacts (zip)
         shell: pwsh
