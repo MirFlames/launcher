@@ -1,11 +1,11 @@
 ; Inno Setup 6 — установщик лаунчера.
-;   .\generate-wizard-images.ps1
+; Картинки мастера: assets\wizard-large.bmp, assets\wizard-small.bmp
 ;   ISCC.exe launcher.iss /DAppVersion=1.2.3
 #ifndef AppVersion
   #define AppVersion "0.0.0"
 #endif
 
-#define MyAppName "OpenSource Minecraft Launcher"
+#define MyAppName "Minecraft Online"
 #define MyAppFolderName "Minecraft Online"
 #define MyAppPublisher "Dmitry Miroshnikov"
 #define MyAppExeName "launcher.exe"
@@ -45,4 +45,4 @@ Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{commondesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "Запустить лаунчер после установки"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#MyAppExeName}"; Description: "Запустить майнкрафт онлайн после установки"; Flags: nowait postinstall skipifsilent

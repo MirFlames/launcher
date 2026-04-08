@@ -119,7 +119,9 @@ jobs:
         env:
           APP_VERSION: ${{ steps.version.outputs.version }}
         run: |
-          ./generate-wizard-images.ps1
+          foreach ($f in @('assets\wizard-large.bmp', 'assets\wizard-small.bmp')) {
+            if (-not (Test-Path $f)) { throw "Missing wizard image (commit files in installer/assets): $f" }
+          }
           $iscc = Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6\ISCC.exe"
           if (-not (Test-Path $iscc)) { throw "ISCC not found: $iscc" }
           & $iscc "launcher.iss" "/DAppVersion=$env:APP_VERSION"
@@ -127,10 +129,8 @@ jobs:
       - name: Sign installer (optional)
         working-directory: ${{ github.workspace }}
         shell: pwsh
-        env:
-          SETUP_VER: ${{ steps.version.outputs.version }}
         run: |
-          $setup = Join-Path $env:GITHUB_WORKSPACE "Launcher-Setup-$($env:SETUP_VER).exe"
+          $setup = Join-Path $env:GITHUB_WORKSPACE "minecraft-online-setup.exe"
           if (-not (Test-Path $setup)) { throw "Installer not found: $setup" }
           if (-not $env:CODESIGN_PFX) {
             Write-Host "No code signing cert; skipping setup.exe signing." -ForegroundColor Yellow
