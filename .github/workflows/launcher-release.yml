@@ -217,7 +217,7 @@ jobs:
           TITLE="Launcher ${VERSION_TAG}"
           NOTES="${{ steps.changelog.outputs.changelog }}"
 
-          SETUP="Launcher-Setup-${{ steps.version.outputs.version }}.exe"
+          SETUP="minecraft-online-setup.exe"
           gh release create "$VERSION_TAG" \
             "launcher.zip" \
             "$SETUP" \
