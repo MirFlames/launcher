@@ -425,8 +425,8 @@ func EnsureMods(gameDir string, version *ServerVersion, onProgress func(stage, s
 	return downloaded > 0, err
 }
 
-// EnsureClientFiles скачивает settings-файлы (options.txt и т.п.) из version.ClientFiles
-// в gameDir. Пропускает client_files из versions/ (JAR) — они обрабатываются EnsureClientJar.
+// EnsureClientFiles скачивает доп. client_files из version.ClientFiles в gameDir.
+// Пропускает JAR из versions/ — они обрабатываются EnsureClientJar.
 func EnsureClientFiles(gameDir string, version *ServerVersion, onProgress func(stage, status string, progress float64)) error {
 	if version == nil || len(version.ClientFiles) == 0 {
 		return nil

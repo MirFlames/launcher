@@ -19,7 +19,7 @@ type Config struct {
 	SocksProxyHost string `json:"socks_proxy_host"`
 	// SocksProxyPort — порт SOCKS5 прокси
 	SocksProxyPort int `json:"socks_proxy_port"`
-	// SyncClientSettings — синхронизировать settings-файлы клиента (например options.txt)
+	// SyncClientSettings — синхронизировать доп. client_files с сервера (не JAR из versions/)
 	SyncClientSettings bool `json:"sync_client_settings"`
 	// AuthlibInjectorDebug — добавить -Dauthlibinjector.debug=verbose,authlib при запуске Java
 	AuthlibInjectorDebug bool `json:"authlib_injector_debug"`

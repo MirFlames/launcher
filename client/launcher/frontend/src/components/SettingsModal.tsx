@@ -124,7 +124,7 @@ export function SettingsModal({isOpen, onClose, onSaved}: SettingsModalProps) {
                         <span>Синхронизировать настройки клиента</span>
                     </label>
                     <p className="modal-hint">
-                        Если включено, settings-файлы клиента (например options.txt) применяются только при докачке модов с сервера.
+                        Если включено, дополнительные файлы клиента с сервера (кроме JAR версии) применяются только при докачке модов с сервера.
                     </p>
 
                     {devUnlocked && (
