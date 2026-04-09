@@ -240,7 +240,7 @@ func ensureGameFiles(gameDir string, version *ServerVersion, modpack *ModpackCon
 		}
 	}
 
-	if version != nil && modsDownloaded && cfg != nil && cfg.SyncClientSettings {
+	if version != nil && modsDownloaded {
 		if err := EnsureClientFiles(gameDir, version, onProgress); err != nil {
 			logError("launch", "EnsureClientFiles error: %v", err)
 			return fmt.Errorf("client_files: %w", err)

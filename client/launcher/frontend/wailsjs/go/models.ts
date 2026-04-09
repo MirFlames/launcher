@@ -26,7 +26,6 @@ export namespace main {
 	    server_port: number;
 	    socks_proxy_host: string;
 	    socks_proxy_port: number;
-	    sync_client_settings: boolean;
 	    authlib_injector_debug: boolean;
 	    skip_server_mod_sync: boolean;
 	
@@ -41,7 +40,6 @@ export namespace main {
 	        this.server_port = source["server_port"];
 	        this.socks_proxy_host = source["socks_proxy_host"];
 	        this.socks_proxy_port = source["socks_proxy_port"];
-	        this.sync_client_settings = source["sync_client_settings"];
 	        this.authlib_injector_debug = source["authlib_injector_debug"];
 	        this.skip_server_mod_sync = source["skip_server_mod_sync"];
 	    }

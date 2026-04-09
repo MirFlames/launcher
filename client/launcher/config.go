@@ -19,8 +19,6 @@ type Config struct {
 	SocksProxyHost string `json:"socks_proxy_host"`
 	// SocksProxyPort — порт SOCKS5 прокси
 	SocksProxyPort int `json:"socks_proxy_port"`
-	// SyncClientSettings — синхронизировать доп. client_files с сервера (не JAR из versions/)
-	SyncClientSettings bool `json:"sync_client_settings"`
 	// AuthlibInjectorDebug — добавить -Dauthlibinjector.debug=verbose,authlib при запуске Java
 	AuthlibInjectorDebug bool `json:"authlib_injector_debug"`
 	// SkipServerModSync — не скачивать моды и конфиги модов с бэкенда (разработка)
@@ -62,11 +60,6 @@ func LoadConfig() (*Config, error) {
 	var cfg Config
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		return defaultConfig(), nil
-	}
-	var raw map[string]json.RawMessage
-	_ = json.Unmarshal(data, &raw)
-	if _, ok := raw["sync_client_settings"]; !ok {
-		cfg.SyncClientSettings = true
 	}
 	// Применяем дефолты из .env (при сборке), если в конфиге пусто
 	if cfg.ApiBaseUrl == "" && buildDefaultApiBaseUrl != "" {
@@ -121,12 +114,11 @@ func defaultConfig() *Config {
 		}
 	}
 	return &Config{
-		ApiBaseUrl:         buildDefaultApiBaseUrl,
-		ServerHost:         buildDefaultServerHost,
-		ServerPort:         port,
-		SocksProxyHost:     buildDefaultSocksProxyHost,
-		SocksProxyPort:     socksPort,
-		SyncClientSettings: true,
+		ApiBaseUrl:     buildDefaultApiBaseUrl,
+		ServerHost:     buildDefaultServerHost,
+		ServerPort:     port,
+		SocksProxyHost: buildDefaultSocksProxyHost,
+		SocksProxyPort: socksPort,
 	}
 }
 

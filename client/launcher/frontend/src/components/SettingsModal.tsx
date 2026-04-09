@@ -11,7 +11,6 @@ interface SettingsModalProps {
 
 export function SettingsModal({isOpen, onClose, onSaved}: SettingsModalProps) {
     const [loadedConfig, setLoadedConfig] = useState<main.Config | null>(null);
-    const [syncClientSettings, setSyncClientSettings] = useState(true);
     const [apiBaseUrl, setApiBaseUrl] = useState('');
     const [serverHost, setServerHost] = useState('');
     const [serverPort, setServerPort] = useState('');
@@ -31,7 +30,6 @@ export function SettingsModal({isOpen, onClose, onSaved}: SettingsModalProps) {
                 .then((cfg) => {
                     if (cfg) {
                         setLoadedConfig(cfg);
-                        setSyncClientSettings(cfg.sync_client_settings ?? true);
                         setApiBaseUrl((cfg.apiBaseUrl || '').trim());
                         setServerHost((cfg.server_host || '').trim());
                         const p = cfg.server_port;
@@ -78,7 +76,6 @@ export function SettingsModal({isOpen, onClose, onSaved}: SettingsModalProps) {
         setSaving(true);
         const cfg = main.Config.createFrom({
             ...(loadedConfig || {}),
-            sync_client_settings: syncClientSettings,
             apiBaseUrl: api,
             server_host: host,
             server_port: portNum,
@@ -115,18 +112,6 @@ export function SettingsModal({isOpen, onClose, onSaved}: SettingsModalProps) {
                     <button className="modal-close" onClick={onClose}>×</button>
                 </div>
                 <div className="modal-body">
-                    <label className="modal-checkbox modal-checkbox-first">
-                        <input
-                            type="checkbox"
-                            checked={syncClientSettings}
-                            onChange={(e) => setSyncClientSettings(e.target.checked)}
-                        />
-                        <span>Синхронизировать настройки клиента</span>
-                    </label>
-                    <p className="modal-hint">
-                        Если включено, дополнительные файлы клиента с сервера (кроме JAR версии) применяются только при докачке модов с сервера.
-                    </p>
-
                     {devUnlocked && (
                         <details className="modal-dev-submenu" open>
                             <summary className="modal-dev-submenu-summary">Для разработчиков</summary>
@@ -163,7 +148,7 @@ export function SettingsModal({isOpen, onClose, onSaved}: SettingsModalProps) {
                                     value={serverPort}
                                     onChange={(e) => setServerPort(e.target.value)}
                                 />
-                                <label className="modal-checkbox modal-checkbox-dev">
+                                <label className="modal-checkbox modal-checkbox-first modal-checkbox-dev">
                                     <input
                                         type="checkbox"
                                         checked={skipServerModSync}
