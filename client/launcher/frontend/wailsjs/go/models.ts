@@ -28,6 +28,13 @@ export namespace main {
 	    socks_proxy_port: number;
 	    authlib_injector_debug: boolean;
 	    skip_server_mod_sync: boolean;
+	    dev_marketing_session_id: string;
+	    dev_source_code: string;
+	    dev_utm_source: string;
+	    dev_utm_medium: string;
+	    dev_utm_campaign: string;
+	    dev_utm_content: string;
+	    dev_landing_path: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new Config(source);
@@ -42,6 +49,13 @@ export namespace main {
 	        this.socks_proxy_port = source["socks_proxy_port"];
 	        this.authlib_injector_debug = source["authlib_injector_debug"];
 	        this.skip_server_mod_sync = source["skip_server_mod_sync"];
+	        this.dev_marketing_session_id = source["dev_marketing_session_id"];
+	        this.dev_source_code = source["dev_source_code"];
+	        this.dev_utm_source = source["dev_utm_source"];
+	        this.dev_utm_medium = source["dev_utm_medium"];
+	        this.dev_utm_campaign = source["dev_utm_campaign"];
+	        this.dev_utm_content = source["dev_utm_content"];
+	        this.dev_landing_path = source["dev_landing_path"];
 	    }
 	}
 	export class LauncherUpdateInfo {

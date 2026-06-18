@@ -149,6 +149,16 @@
   margin-bottom: 0;
 }
 
+.modal-dev-divider {
+  margin-top: 20px;
+  border-top: 1px solid var(--color-border);
+  opacity: 0.7;
+}
+
+.modal-hint-dev-strong {
+  color: var(--color-text-muted);
+}
+
 .modal-body {
   flex: 1 1 auto;
   min-height: 0;

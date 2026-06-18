@@ -21,6 +21,13 @@ export function SettingsModal({isOpen, onClose, onSaved}: SettingsModalProps) {
     const [devSecretTaps, setDevSecretTaps] = useState(0);
     const [authlibInjectorDebug, setAuthlibInjectorDebug] = useState(false);
     const [skipServerModSync, setSkipServerModSync] = useState(false);
+    const [devMarketingSessionId, setDevMarketingSessionId] = useState('');
+    const [devSourceCode, setDevSourceCode] = useState('');
+    const [devUtmSource, setDevUtmSource] = useState('');
+    const [devUtmMedium, setDevUtmMedium] = useState('');
+    const [devUtmCampaign, setDevUtmCampaign] = useState('');
+    const [devUtmContent, setDevUtmContent] = useState('');
+    const [devLandingPath, setDevLandingPath] = useState('');
 
     useEffect(() => {
         if (isOpen) {
@@ -36,6 +43,13 @@ export function SettingsModal({isOpen, onClose, onSaved}: SettingsModalProps) {
                         setServerPort(p != null && p > 0 ? String(p) : '');
                         setAuthlibInjectorDebug(!!cfg.authlib_injector_debug);
                         setSkipServerModSync(!!cfg.skip_server_mod_sync);
+                        setDevMarketingSessionId((cfg.dev_marketing_session_id || '').trim());
+                        setDevSourceCode((cfg.dev_source_code || '').trim());
+                        setDevUtmSource((cfg.dev_utm_source || '').trim());
+                        setDevUtmMedium((cfg.dev_utm_medium || '').trim());
+                        setDevUtmCampaign((cfg.dev_utm_campaign || '').trim());
+                        setDevUtmContent((cfg.dev_utm_content || '').trim());
+                        setDevLandingPath((cfg.dev_landing_path || '').trim());
                     }
                 })
                 .catch(() => {});
@@ -81,6 +95,13 @@ export function SettingsModal({isOpen, onClose, onSaved}: SettingsModalProps) {
             server_port: portNum,
             authlib_injector_debug: authlibInjectorDebug,
             skip_server_mod_sync: skipServerModSync,
+            dev_marketing_session_id: devMarketingSessionId.trim(),
+            dev_source_code: devSourceCode.trim(),
+            dev_utm_source: devUtmSource.trim(),
+            dev_utm_medium: devUtmMedium.trim(),
+            dev_utm_campaign: devUtmCampaign.trim(),
+            dev_utm_content: devUtmContent.trim(),
+            dev_landing_path: devLandingPath.trim(),
         });
         SaveConfig(cfg)
             .then(() => {
@@ -170,6 +191,73 @@ export function SettingsModal({isOpen, onClose, onSaved}: SettingsModalProps) {
                                 <p className="modal-hint modal-hint-dev">
                                     Подробный лог в консоли Java; для диагностики сети и Yggdrasil.
                                 </p>
+                                <div className="modal-dev-divider" />
+                                <p className="modal-hint modal-hint-dev modal-hint-dev-strong">
+                                    Dev-only marketing args. Эти значения будут проброшены в Minecraft как `--marketing-*` и `--utm-*`.
+                                </p>
+                                <label htmlFor="settings-dev-marketing-session-id">Marketing session id</label>
+                                <input
+                                    id="settings-dev-marketing-session-id"
+                                    type="text"
+                                    autoComplete="off"
+                                    placeholder="например browser-session-123"
+                                    value={devMarketingSessionId}
+                                    onChange={(e) => setDevMarketingSessionId(e.target.value)}
+                                />
+                                <label htmlFor="settings-dev-source-code">Source code</label>
+                                <input
+                                    id="settings-dev-source-code"
+                                    type="text"
+                                    autoComplete="off"
+                                    placeholder="например telegram-post-01"
+                                    value={devSourceCode}
+                                    onChange={(e) => setDevSourceCode(e.target.value)}
+                                />
+                                <label htmlFor="settings-dev-utm-source">UTM source</label>
+                                <input
+                                    id="settings-dev-utm-source"
+                                    type="text"
+                                    autoComplete="off"
+                                    placeholder="telegram"
+                                    value={devUtmSource}
+                                    onChange={(e) => setDevUtmSource(e.target.value)}
+                                />
+                                <label htmlFor="settings-dev-utm-medium">UTM medium</label>
+                                <input
+                                    id="settings-dev-utm-medium"
+                                    type="text"
+                                    autoComplete="off"
+                                    placeholder="community"
+                                    value={devUtmMedium}
+                                    onChange={(e) => setDevUtmMedium(e.target.value)}
+                                />
+                                <label htmlFor="settings-dev-utm-campaign">UTM campaign</label>
+                                <input
+                                    id="settings-dev-utm-campaign"
+                                    type="text"
+                                    autoComplete="off"
+                                    placeholder="phase-0"
+                                    value={devUtmCampaign}
+                                    onChange={(e) => setDevUtmCampaign(e.target.value)}
+                                />
+                                <label htmlFor="settings-dev-utm-content">UTM content</label>
+                                <input
+                                    id="settings-dev-utm-content"
+                                    type="text"
+                                    autoComplete="off"
+                                    placeholder="creative-a"
+                                    value={devUtmContent}
+                                    onChange={(e) => setDevUtmContent(e.target.value)}
+                                />
+                                <label htmlFor="settings-dev-landing-path">Landing path</label>
+                                <input
+                                    id="settings-dev-landing-path"
+                                    type="text"
+                                    autoComplete="off"
+                                    placeholder="/minecraft/"
+                                    value={devLandingPath}
+                                    onChange={(e) => setDevLandingPath(e.target.value)}
+                                />
                             </div>
                         </details>
                     )}

@@ -23,6 +23,20 @@ type Config struct {
 	AuthlibInjectorDebug bool `json:"authlib_injector_debug"`
 	// SkipServerModSync — не скачивать моды и конфиги модов с бэкенда (разработка)
 	SkipServerModSync bool `json:"skip_server_mod_sync"`
+	// DevMarketingSessionID — dev-only значение для --marketing-session-id
+	DevMarketingSessionID string `json:"dev_marketing_session_id"`
+	// DevSourceCode — dev-only значение для --source-code
+	DevSourceCode string `json:"dev_source_code"`
+	// DevUTMSource — dev-only значение для --utm-source
+	DevUTMSource string `json:"dev_utm_source"`
+	// DevUTMMedium — dev-only значение для --utm-medium
+	DevUTMMedium string `json:"dev_utm_medium"`
+	// DevUTMCampaign — dev-only значение для --utm-campaign
+	DevUTMCampaign string `json:"dev_utm_campaign"`
+	// DevUTMContent — dev-only значение для --utm-content
+	DevUTMContent string `json:"dev_utm_content"`
+	// DevLandingPath — dev-only значение для --landing-path
+	DevLandingPath string `json:"dev_landing_path"`
 }
 
 const configFilename = "launcher-config.json"

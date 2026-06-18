@@ -364,6 +364,14 @@ func resolveServerConnection(cfg *Config, version *ServerVersion) (host, port st
 	return host, port
 }
 
+func appendOptionalGameArg(args []string, flag, value string) []string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return args
+	}
+	return append(args, flag, value)
+}
+
 func spawnMinecraftProcess(javaExe, gameDir string, jvmArgs []string, mainClass string, gameArgs []string, onProgress LaunchProgress, onProcessStarted LaunchProcessStarted) error {
 	var args []string
 	args = append(args, jvmArgs...)
@@ -442,6 +450,16 @@ func LaunchMinecraft(onProgress LaunchProgress, onProcessStarted LaunchProcessSt
 			return fmt.Errorf("server_port не задан. Укажите в настройках или задайте SERVER_PORT в .env при сборке")
 		}
 		gameArgs = append(gameArgs, "--server", serverHost, "--port", serverPort)
+	}
+
+	if cfg != nil {
+		gameArgs = appendOptionalGameArg(gameArgs, "--marketing-session-id", cfg.DevMarketingSessionID)
+		gameArgs = appendOptionalGameArg(gameArgs, "--source-code", cfg.DevSourceCode)
+		gameArgs = appendOptionalGameArg(gameArgs, "--utm-source", cfg.DevUTMSource)
+		gameArgs = appendOptionalGameArg(gameArgs, "--utm-medium", cfg.DevUTMMedium)
+		gameArgs = appendOptionalGameArg(gameArgs, "--utm-campaign", cfg.DevUTMCampaign)
+		gameArgs = appendOptionalGameArg(gameArgs, "--utm-content", cfg.DevUTMContent)
+		gameArgs = appendOptionalGameArg(gameArgs, "--landing-path", cfg.DevLandingPath)
 	}
 
 	backendURL := getApiBaseUrl()
