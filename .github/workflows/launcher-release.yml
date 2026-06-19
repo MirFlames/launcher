@@ -274,9 +274,15 @@ jobs:
       - name: Install system dependencies (WebKit)
         run: |
           sudo apt-get update -qq
+          # Ubuntu 24.04+ использует libwebkit2gtk-4.1-dev, более ранние — 4.0-dev
+          if apt-cache show libwebkit2gtk-4.1-dev &>/dev/null; then
+            WEBKIT_PKG=libwebkit2gtk-4.1-dev
+          else
+            WEBKIT_PKG=libwebkit2gtk-4.0-dev
+          fi
           sudo apt-get install -y --no-install-recommends \
             libgtk-3-dev \
-            libwebkit2gtk-4.0-dev \
+            "$WEBKIT_PKG" \
             pkg-config \
             gcc
 
@@ -306,7 +312,13 @@ jobs:
           [ -n "$UPDATE_MANIFEST_URL" ] && LDFLAGS="$LDFLAGS -X main.buildUpdateManifestURL=$UPDATE_MANIFEST_URL"
           [ -n "$UPDATE_SIGNATURE_URL" ] && LDFLAGS="$LDFLAGS -X main.buildUpdateSignatureURL=$UPDATE_SIGNATURE_URL"
           [ -n "$UPDATE_PUBLIC_KEY_HEX" ] && LDFLAGS="$LDFLAGS -X main.buildUpdatePublicKeyHex=$UPDATE_PUBLIC_KEY_HEX"
-          wails build -platform linux/amd64 -ldflags "$LDFLAGS" -trimpath
+          # На Ubuntu 24.04+ WebKit называется 4.1, передаём тег сборки Wails
+          if pkg-config --exists webkit2gtk-4.1 2>/dev/null; then
+            EXTRA_TAGS="-tags webkit2_41"
+          else
+            EXTRA_TAGS=""
+          fi
+          wails build -platform linux/amd64 -ldflags "$LDFLAGS" -trimpath $EXTRA_TAGS
 
       - name: Package artifacts
         run: |
