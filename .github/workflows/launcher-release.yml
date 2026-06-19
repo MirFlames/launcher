@@ -423,7 +423,8 @@ jobs:
         run: |
           echo "${{ secrets.LAUNCHER_UPDATE_PRIVATE_KEY }}" > private.pem
           for PLATFORM in windows macos linux; do
-            openssl pkeyutl -sign -inkey private.pem \
+            # -rawin обязателен для Ed25519 в OpenSSL 3.x (данные передаются без предварительного хэширования)
+            openssl pkeyutl -sign -rawin -inkey private.pem \
               -in "launcher-update-${PLATFORM}.json" \
               -out "launcher-update-${PLATFORM}.sig.bin"
             xxd -p -c 256 "launcher-update-${PLATFORM}.sig.bin" | tr -d '\n' > "launcher-update-${PLATFORM}.json.sig"
