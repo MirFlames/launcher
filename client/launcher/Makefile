@@ -5,7 +5,7 @@
 # Использование: make [target]
 # На Windows: используйте Git Bash, WSL или "make" из Chocolatey (choco install make)
 
-.PHONY: dev build build-prod clean install deps
+.PHONY: dev build build-prod build-macos build-linux clean install deps
 
 # Запуск в режиме разработки (hot reload)
 dev:
@@ -18,6 +18,14 @@ build:
 # Сборка с минификацией и оптимизацией
 build-prod:
 	wails build -clean
+
+# Сборка под macOS (запускать на macOS)
+build-macos:
+	wails build -platform darwin/amd64 -ldflags "-s -w" -trimpath
+
+# Сборка под Linux (запускать на Linux или в Docker)
+build-linux:
+	wails build -platform linux/amd64 -ldflags "-s -w" -trimpath
 
 # Очистка артефактов сборки
 clean:

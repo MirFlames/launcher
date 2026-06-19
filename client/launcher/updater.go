@@ -1,7 +1,9 @@
 package main
 
 import (
+	"archive/tar"
 	"archive/zip"
+	"compress/gzip"
 	"crypto/ed25519"
 	"encoding/hex"
 	"encoding/json"
@@ -9,11 +11,9 @@ import (
 	"io"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
-	"syscall"
 )
 
 // LauncherUpdateManifest описывает формат JSON-манифеста обновления,
@@ -176,52 +176,129 @@ func downloadUpdateBinary(manifest *LauncherUpdateManifest) (string, error) {
 		return "", fmt.Errorf("контрольная сумма загруженного обновления не совпадает")
 	}
 
-	// Если это zip-архив — распаковываем exe.
-	if strings.EqualFold(filepath.Ext(downloadPath), ".zip") {
+	ext := strings.ToLower(filepath.Ext(downloadPath))
+
+	// ZIP-архив (Windows и macOS используют zip).
+	if ext == ".zip" {
 		r, err := zip.OpenReader(downloadPath)
 		if err != nil {
 			return "", fmt.Errorf("распаковка обновления: %w", err)
 		}
 		defer r.Close()
 
-		var exeFile *zip.File
+		// На Windows ищем .exe, на других платформах — первый файл без расширения или первый файл вообще.
+		var target *zip.File
 		for _, f := range r.File {
-			if !f.FileInfo().IsDir() && strings.HasSuffix(strings.ToLower(f.Name), ".exe") {
-				exeFile = f
-				break
+			if f.FileInfo().IsDir() {
+				continue
+			}
+			name := strings.ToLower(f.Name)
+			if runtime.GOOS == "windows" {
+				if strings.HasSuffix(name, ".exe") {
+					target = f
+					break
+				}
+			} else {
+				// Берём бинарник (файл без .exe расширения), или первый попавшийся файл как запасной вариант.
+				if !strings.HasSuffix(name, ".exe") && !strings.HasSuffix(name, ".json") && !strings.HasSuffix(name, ".sig") {
+					target = f
+					break
+				}
 			}
 		}
-		if exeFile == nil {
-			return "", fmt.Errorf("в архиве обновления не найден .exe файл")
+		if target == nil && len(r.File) > 0 {
+			// Запасной вариант: берём первый файл в архиве.
+			for _, f := range r.File {
+				if !f.FileInfo().IsDir() {
+					target = f
+					break
+				}
+			}
+		}
+		if target == nil {
+			return "", fmt.Errorf("в архиве обновления не найден исполняемый файл")
 		}
 
-		rc, err := exeFile.Open()
+		rc, err := target.Open()
 		if err != nil {
-			return "", fmt.Errorf("чтение exe из архива: %w", err)
+			return "", fmt.Errorf("чтение бинарника из архива: %w", err)
 		}
 		defer rc.Close()
 
-		exePath := filepath.Join(tmpDir, base+".exe")
+		binExt := ""
+		if runtime.GOOS == "windows" {
+			binExt = ".exe"
+		}
+		exePath := filepath.Join(tmpDir, base+binExt)
 		out, err := os.Create(exePath)
 		if err != nil {
-			return "", fmt.Errorf("создание временного exe: %w", err)
+			return "", fmt.Errorf("создание временного бинарника: %w", err)
 		}
 		if _, err := io.Copy(out, rc); err != nil {
 			out.Close()
-			return "", fmt.Errorf("распаковка exe: %w", err)
+			return "", fmt.Errorf("распаковка бинарника: %w", err)
 		}
 		out.Close()
-		// Архив больше не нужен.
 		_ = os.Remove(downloadPath)
+		if runtime.GOOS != "windows" {
+			_ = os.Chmod(exePath, 0755)
+		}
 		logInfo("update", "обновление распаковано из zip: %s → %s", downloadPath, exePath)
 		return exePath, nil
 	}
 
-	// Не zip — считаем, что это готовый бинарник.
+	// TAR.GZ-архив (Linux).
+	if strings.HasSuffix(strings.ToLower(downloadPath), ".tar.gz") || ext == ".gz" {
+		f, err := os.Open(downloadPath)
+		if err != nil {
+			return "", fmt.Errorf("открытие tar.gz: %w", err)
+		}
+		defer f.Close()
+
+		gz, err := gzip.NewReader(f)
+		if err != nil {
+			return "", fmt.Errorf("gzip: %w", err)
+		}
+		defer gz.Close()
+
+		tr := tar.NewReader(gz)
+		var binPath string
+		for {
+			hdr, err := tr.Next()
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				return "", fmt.Errorf("чтение tar: %w", err)
+			}
+			if hdr.Typeflag == tar.TypeReg && !strings.HasSuffix(hdr.Name, "/") {
+				binPath = filepath.Join(tmpDir, base)
+				out, err := os.Create(binPath)
+				if err != nil {
+					return "", fmt.Errorf("создание бинарника из tar: %w", err)
+				}
+				if _, err := io.Copy(out, tr); err != nil { // #nosec G110 — trusted signed manifest
+					out.Close()
+					return "", fmt.Errorf("распаковка бинарника из tar: %w", err)
+				}
+				out.Close()
+				break
+			}
+		}
+		_ = os.Remove(downloadPath)
+		if binPath == "" {
+			return "", fmt.Errorf("в tar.gz архиве не найден исполняемый файл")
+		}
+		_ = os.Chmod(binPath, 0755)
+		logInfo("update", "обновление распаковано из tar.gz: %s → %s", downloadPath, binPath)
+		return binPath, nil
+	}
+
+	// Не архив — считаем, что это готовый бинарник.
 	if runtime.GOOS != "windows" {
 		_ = os.Chmod(downloadPath, 0755)
 	}
-	logInfo("update", "обновление скачано как exe: %s", downloadPath)
+	logInfo("update", "обновление скачано как бинарник: %s", downloadPath)
 	return downloadPath, nil
 }
 
@@ -260,104 +337,6 @@ func (a *App) CheckLauncherUpdate() (*LauncherUpdateInfo, error) {
 	return info, nil
 }
 
-// ApplyLauncherUpdate скачивает новую версию лаунчера и обновляет текущий бинарник.
-// На Windows выполняется обновление "на месте", чтобы ярлыки, указывающие на launcher.exe,
-// продолжали открывать обновлённую версию.
-func (a *App) ApplyLauncherUpdate() error {
-	logInfo("update", "начало ApplyLauncherUpdate, текущая версия: %s", LauncherVersion)
-	manifest := lastUpdateManifest
-	if manifest == nil {
-		m, err := fetchUpdateManifest()
-		if err != nil {
-			logError("update", "ошибка fetchUpdateManifest в ApplyLauncherUpdate: %v", err)
-			return err
-		}
-		if m == nil {
-			return fmt.Errorf("обновление не найдено")
-		}
-		manifest = m
-	}
-	if compareVersions(manifest.Version, LauncherVersion) <= 0 {
-		return fmt.Errorf("обновление не требуется")
-	}
-
-	// Специальная логика для Windows: обновление "на месте" текущего launcher.exe,
-	// чтобы ярлыки продолжали работать.
-	if runtime.GOOS == "windows" {
-		currentExe, err := os.Executable()
-		if err != nil {
-			return fmt.Errorf("не удалось определить путь к текущему exe: %w", err)
-		}
-		currentExe, err = filepath.Abs(currentExe)
-		if err != nil {
-			return fmt.Errorf("не удалось нормализовать путь к exe: %w", err)
-		}
-
-		dir := filepath.Dir(currentExe)
-		newPath := filepath.Join(dir, "launcher.new.exe")
-		logInfo("update", "windows update: currentExe=%s newPath=%s", currentExe, newPath)
-
-		// Скачиваем и, при необходимости, распаковываем обновление.
-		exePath, err := downloadUpdateBinary(manifest)
-		if err != nil {
-			logError("update", "ошибка downloadUpdateBinary: %v", err)
-			return err
-		}
-		// Перекладываем exe рядом с текущим бинарником в launcher.new.exe
-		if err := copyFile(exePath, newPath); err != nil {
-			logError("update", "ошибка copyFile(%s → %s): %v", exePath, newPath, err)
-			return fmt.Errorf("копирование обновления: %w", err)
-		}
-		logInfo("update", "обновление скопировано в %s", newPath)
-
-		// Создаём bat-скрипт, который в фоне дождётся освобождения файла, заменит бинарник и перезапустит лаунчер.
-		scriptPath := filepath.Join(os.TempDir(), "launcher-update-"+manifest.Version+".bat")
-		scriptContents := `@echo off
-setlocal ENABLEDELAYEDEXPANSION
-:loop
-ping 127.0.0.1 -n 2 >NUL
-copy /Y "%LAUNCHER_NEW%" "%LAUNCHER_OLD%" >NUL
-if errorlevel 1 goto loop
-del "%LAUNCHER_NEW%"
-start "" "%LAUNCHER_OLD%"
-endlocal
-`
-		if err := os.WriteFile(scriptPath, []byte(scriptContents), 0600); err != nil {
-			logError("update", "ошибка записи bat-скрипта %s: %v", scriptPath, err)
-			return fmt.Errorf("не удалось создать скрипт обновления: %w", err)
-		}
-		logInfo("update", "bat-скрипт обновления записан: %s", scriptPath)
-
-		cmd := exec.Command("cmd.exe", "/C", scriptPath) // #nosec G204 — управляемые пути
-		// Скрываем окно cmd, чтобы пользователь не видел вспомогательный процесс.
-		cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
-		cmd.Env = append(os.Environ(),
-			"LAUNCHER_OLD="+currentExe,
-			"LAUNCHER_NEW="+newPath,
-		)
-		if err := cmd.Start(); err != nil {
-			logError("update", "ошибка запуска bat-скрипта обновления: %v", err)
-			return fmt.Errorf("не удалось запустить процесс обновления: %w", err)
-		}
-		logInfo("update", "процесс обновления запущен в фоне, текущий процесс завершится вручную")
-		// Дальнейшее завершение и рестарт лаунчера обрабатываются внешним процессом.
-		return nil
-	}
-
-	// Для других платформ оставляем прежнее поведение: запускаем загруженный бинарник.
-	path, err := downloadUpdateBinary(manifest)
-	if err != nil {
-		logError("update", "ошибка downloadUpdateBinary (non-windows): %v", err)
-		return err
-	}
-	cmd := exec.Command(path) // #nosec G204 — путь контролируется подписанным манифестом
-	if err := cmd.Start(); err != nil {
-		logError("update", "ошибка запуска внешнего установщика: %v", err)
-		return fmt.Errorf("не удалось запустить установщик обновления: %w", err)
-	}
-	logInfo("update", "внешний установщик обновления запущен: %s", path)
-	return nil
-}
 
 // copyFile копирует файл src в dst, перезаписывая, если существует.
 func copyFile(src, dst string) error {
