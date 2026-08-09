@@ -19,6 +19,9 @@ const (
 	defaultVersionType      = "fabric"
 	launcherName           = "custom"
 	launcherVersionFallback = "1.0.1"
+
+	// Имя папки с игровыми данными в пользовательском каталоге (macOS/Linux).
+	launcherDataDirName = "minecraft-online"
 )
 
 // Режимы доступа к файлам

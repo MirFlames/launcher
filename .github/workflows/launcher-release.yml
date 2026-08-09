@@ -190,6 +190,12 @@ jobs:
         working-directory: client/launcher/frontend
         run: npm ci
 
+      # Проверки прав доступа и симлинков при распаковке JDK осмысленны только на Unix —
+      # на Windows-раннере они вырождаются в no-op.
+      - name: Run Go tests
+        working-directory: client/launcher
+        run: CGO_ENABLED=0 go test ./...
+
       - name: Build launcher (macOS)
         working-directory: client/launcher
         env:
@@ -207,7 +213,9 @@ jobs:
           [ -n "$UPDATE_MANIFEST_URL" ] && LDFLAGS="$LDFLAGS -X main.buildUpdateManifestURL=$UPDATE_MANIFEST_URL"
           [ -n "$UPDATE_SIGNATURE_URL" ] && LDFLAGS="$LDFLAGS -X main.buildUpdateSignatureURL=$UPDATE_SIGNATURE_URL"
           [ -n "$UPDATE_PUBLIC_KEY_HEX" ] && LDFLAGS="$LDFLAGS -X main.buildUpdatePublicKeyHex=$UPDATE_PUBLIC_KEY_HEX"
-          wails build -platform darwin/amd64 -ldflags "$LDFLAGS" -trimpath
+          # universal, а не amd64: на Apple Silicon под Rosetta runtime.GOARCH вернёт amd64,
+          # и лаунчер скачает x64-JDK — вся игра поедет через трансляцию.
+          wails build -platform darwin/universal -ldflags "$LDFLAGS" -trimpath
 
       - name: Code sign (optional)
         env:
@@ -294,6 +302,10 @@ jobs:
       - name: Install frontend deps
         working-directory: client/launcher/frontend
         run: npm ci
+
+      - name: Run Go tests
+        working-directory: client/launcher
+        run: CGO_ENABLED=0 go test ./...
 
       - name: Build launcher (Linux)
         working-directory: client/launcher

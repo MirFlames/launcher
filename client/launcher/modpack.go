@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
@@ -120,15 +121,45 @@ type ModpackLoggingFile struct {
 	URL  string `json:"url,omitempty"`
 }
 
-// getLauncherDir возвращает папку лаунчера (рядом с exe)
+// getLauncherDir возвращает папку с игровыми данными (JDK, versions, mods, assets).
+//
+// Windows — рядом с exe, как и раньше: у существующих пользователей там лежат гигабайты
+// файлов, и менять путь нельзя.
+// macOS/Linux — стандартные пользовательские папки: на macOS путь рядом с бинарником
+// ведёт внутрь launcher.app/Contents/MacOS, а запись в бандл ломает подпись приложения
+// и стирается при каждом обновлении.
 func getLauncherDir() (string, error) {
-	exe, err := os.Executable()
+	if runtime.GOOS == "windows" {
+		exe, err := os.Executable()
+		if err != nil {
+			return "", err
+		}
+		dir := filepath.Dir(exe)
+		if dir == "" {
+			return ".", nil
+		}
+		return dir, nil
+	}
+
+	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
 	}
-	dir := filepath.Dir(exe)
-	if dir == "" {
-		return ".", nil
+
+	var dir string
+	switch runtime.GOOS {
+	case "darwin":
+		dir = filepath.Join(home, "Library", "Application Support", launcherDataDirName)
+	default:
+		base := strings.TrimSpace(os.Getenv("XDG_DATA_HOME"))
+		if base == "" {
+			base = filepath.Join(home, ".local", "share")
+		}
+		dir = filepath.Join(base, launcherDataDirName)
+	}
+
+	if err := os.MkdirAll(dir, dirMode); err != nil {
+		return "", err
 	}
 	return dir, nil
 }
