@@ -190,12 +190,6 @@ jobs:
         working-directory: client/launcher/frontend
         run: npm ci
 
-      # Проверки прав доступа и симлинков при распаковке JDK осмысленны только на Unix —
-      # на Windows-раннере они вырождаются в no-op.
-      - name: Run Go tests
-        working-directory: client/launcher
-        run: CGO_ENABLED=0 go test ./...
-
       - name: Build launcher (macOS)
         working-directory: client/launcher
         env:
@@ -216,6 +210,15 @@ jobs:
           # universal, а не amd64: на Apple Silicon под Rosetta runtime.GOARCH вернёт amd64,
           # и лаунчер скачает x64-JDK — вся игра поедет через трансляцию.
           wails build -platform darwin/universal -ldflags "$LDFLAGS" -trimpath
+
+      # Только после сборки: main.go содержит //go:embed all:frontend/dist,
+      # а frontend/dist создаётся wails-сборкой и лежит в .gitignore —
+      # до неё пакет просто не компилируется.
+      # На Unix эти тесты ценнее всего: проверки прав доступа и симлинков
+      # при распаковке JDK на Windows вырождаются в no-op.
+      - name: Run Go tests
+        working-directory: client/launcher
+        run: CGO_ENABLED=0 go test ./...
 
       - name: Code sign (optional)
         env:
@@ -303,10 +306,6 @@ jobs:
         working-directory: client/launcher/frontend
         run: npm ci
 
-      - name: Run Go tests
-        working-directory: client/launcher
-        run: CGO_ENABLED=0 go test ./...
-
       - name: Build launcher (Linux)
         working-directory: client/launcher
         env:
@@ -331,6 +330,11 @@ jobs:
             EXTRA_TAGS=""
           fi
           wails build -platform linux/amd64 -ldflags "$LDFLAGS" -trimpath $EXTRA_TAGS
+
+      # После сборки — см. пояснение в job build-macos (//go:embed frontend/dist).
+      - name: Run Go tests
+        working-directory: client/launcher
+        run: CGO_ENABLED=0 go test ./...
 
       - name: Package artifacts
         run: |
