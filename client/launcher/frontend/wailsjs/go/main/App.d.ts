@@ -16,6 +16,8 @@ export function AuthStartLogin():Promise<main.AuthSession>;
 
 export function CheckLauncherUpdate():Promise<main.LauncherUpdateInfo>;
 
+export function GetBuildDefaults():Promise<main.EnvProfile>;
+
 export function GetConfig():Promise<main.Config>;
 
 export function GetLauncherVersion():Promise<string>;

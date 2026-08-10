@@ -7,7 +7,30 @@ import (
 	"path/filepath"
 )
 
+// Имена профилей окружения (значения поля Config.Env).
+const (
+	envProd = "prod"
+	envDev  = "dev"
+)
+
+// EnvProfile — сетевой набор одного окружения (прод / dev-стенд).
+// Пустое поле означает «взять дефолт сборки» (ldflags из .env), поэтому
+// нетронутый прод-профиль не замораживает адреса в конфиге пользователя
+// и продолжает следовать за тем, с чем собран лаунчер.
+type EnvProfile struct {
+	ApiBaseUrl     string `json:"apiBaseUrl,omitempty"`
+	ServerHost     string `json:"server_host,omitempty"`
+	ServerPort     int    `json:"server_port,omitempty"`
+	SocksProxyHost string `json:"socks_proxy_host,omitempty"`
+	SocksProxyPort int    `json:"socks_proxy_port,omitempty"`
+}
+
 // Config хранит настройки лаунчера
+//
+// Поля ApiBaseUrl/ServerHost/ServerPort/SocksProxy* — ЭФФЕКТИВНЫЕ значения:
+// их читает весь остальной код (downloader, jdk, modpack, launch, auth).
+// Активный профиль окружения (Env + EnvProfiles) лишь копируется в них при
+// сохранении настроек, поэтому переключение окружения ничего больше не ломает.
 type Config struct {
 	// ApiBaseUrl — базовый URL бэкенда
 	ApiBaseUrl string `json:"apiBaseUrl"`
@@ -19,6 +42,10 @@ type Config struct {
 	SocksProxyHost string `json:"socks_proxy_host"`
 	// SocksProxyPort — порт SOCKS5 прокси
 	SocksProxyPort int `json:"socks_proxy_port"`
+	// Env — активный профиль окружения ("prod" | "dev"); пустая строка = "prod"
+	Env string `json:"env,omitempty"`
+	// EnvProfiles — сохранённые наборы адресов по окружениям (ключи "prod"/"dev")
+	EnvProfiles map[string]EnvProfile `json:"env_profiles,omitempty"`
 	// AuthlibInjectorDebug — добавить -Dauthlibinjector.debug=verbose,authlib при запуске Java
 	AuthlibInjectorDebug bool `json:"authlib_injector_debug"`
 	// SkipServerModSync — не скачивать моды и конфиги модов с бэкенда (разработка)
@@ -75,25 +102,25 @@ func LoadConfig() (*Config, error) {
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		return defaultConfig(), nil
 	}
+	// Раскладываем старый одиночный набор адресов по профилям (только в памяти,
+	// файл при этом не переписываем — LoadConfig вызывается часто и писать не должен).
+	cfg.migrateEnvProfiles()
 	// Применяем дефолты из .env (при сборке), если в конфиге пусто
-	if cfg.ApiBaseUrl == "" && buildDefaultApiBaseUrl != "" {
-		cfg.ApiBaseUrl = buildDefaultApiBaseUrl
+	d := buildDefaultProfile()
+	if cfg.ApiBaseUrl == "" {
+		cfg.ApiBaseUrl = d.ApiBaseUrl
 	}
-	if cfg.ServerHost == "" && buildDefaultServerHost != "" {
-		cfg.ServerHost = buildDefaultServerHost
+	if cfg.ServerHost == "" {
+		cfg.ServerHost = d.ServerHost
 	}
-	if cfg.ServerPort <= 0 && buildDefaultServerPort != "" {
-		if p, err := parseInt(buildDefaultServerPort); err == nil && p > 0 {
-			cfg.ServerPort = p
-		}
+	if cfg.ServerPort <= 0 {
+		cfg.ServerPort = d.ServerPort
 	}
-	if cfg.SocksProxyHost == "" && buildDefaultSocksProxyHost != "" {
-		cfg.SocksProxyHost = buildDefaultSocksProxyHost
+	if cfg.SocksProxyHost == "" {
+		cfg.SocksProxyHost = d.SocksProxyHost
 	}
-	if cfg.SocksProxyPort <= 0 && buildDefaultSocksProxyPort != "" {
-		if p, err := parseInt(buildDefaultSocksProxyPort); err == nil && p > 0 {
-			cfg.SocksProxyPort = p
-		}
+	if cfg.SocksProxyPort <= 0 {
+		cfg.SocksProxyPort = d.SocksProxyPort
 	}
 	return &cfg, nil
 }
@@ -115,25 +142,115 @@ func SaveConfig(cfg *Config) error {
 }
 
 func defaultConfig() *Config {
-	port := 0
-	if buildDefaultServerPort != "" {
-		if p, err := parseInt(buildDefaultServerPort); err == nil && p > 0 {
-			port = p
-		}
-	}
-	socksPort := 0
-	if buildDefaultSocksProxyPort != "" {
-		if p, err := parseInt(buildDefaultSocksProxyPort); err == nil && p > 0 {
-			socksPort = p
-		}
-	}
+	d := buildDefaultProfile()
 	return &Config{
+		ApiBaseUrl:     d.ApiBaseUrl,
+		ServerHost:     d.ServerHost,
+		ServerPort:     d.ServerPort,
+		SocksProxyHost: d.SocksProxyHost,
+		SocksProxyPort: d.SocksProxyPort,
+		Env:            envProd,
+	}
+}
+
+// buildDefaultProfile — набор адресов, с которым собран лаунчер (ldflags из .env).
+func buildDefaultProfile() EnvProfile {
+	return EnvProfile{
 		ApiBaseUrl:     buildDefaultApiBaseUrl,
 		ServerHost:     buildDefaultServerHost,
-		ServerPort:     port,
+		ServerPort:     parsePositiveInt(buildDefaultServerPort),
 		SocksProxyHost: buildDefaultSocksProxyHost,
-		SocksProxyPort: socksPort,
+		SocksProxyPort: parsePositiveInt(buildDefaultSocksProxyPort),
 	}
+}
+
+// EnvName — активный профиль; всё, что не "dev", считаем прод-профилем.
+func (c *Config) EnvName() string {
+	if c != nil && c.Env == envDev {
+		return envDev
+	}
+	return envProd
+}
+
+// Profile — сохранённый набор окружения. Для прода пустые поля дозаполняются
+// дефолтами сборки; для dev остаются пустыми — иначе недонастроенный стенд
+// молча увёл бы разработчика на прод-адреса.
+func (c *Config) Profile(env string) EnvProfile {
+	var p EnvProfile
+	if c != nil {
+		p = c.EnvProfiles[env]
+	}
+	if env == envDev {
+		return p
+	}
+	d := buildDefaultProfile()
+	if p.ApiBaseUrl == "" {
+		p.ApiBaseUrl = d.ApiBaseUrl
+	}
+	if p.ServerHost == "" {
+		p.ServerHost = d.ServerHost
+	}
+	if p.ServerPort <= 0 {
+		p.ServerPort = d.ServerPort
+	}
+	if p.SocksProxyHost == "" {
+		p.SocksProxyHost = d.SocksProxyHost
+	}
+	if p.SocksProxyPort <= 0 {
+		p.SocksProxyPort = d.SocksProxyPort
+	}
+	return p
+}
+
+// ApplyProfile делает профиль активным: копирует его в эффективные поля конфига.
+func (c *Config) ApplyProfile(env string) {
+	if c == nil {
+		return
+	}
+	if env != envDev {
+		env = envProd
+	}
+	p := c.Profile(env)
+	c.Env = env
+	c.ApiBaseUrl = p.ApiBaseUrl
+	c.ServerHost = p.ServerHost
+	c.ServerPort = p.ServerPort
+	c.SocksProxyHost = p.SocksProxyHost
+	c.SocksProxyPort = p.SocksProxyPort
+}
+
+// migrateEnvProfiles — конфиги, созданные до появления профилей, хранят один
+// набор адресов. Раскладываем его: прод-профиль остаётся пустым (= дефолты
+// сборки), а набор, отличающийся от сборки, считаем dev-стендом. Эффективные
+// поля не трогаем — поведение уже установленного лаунчера не меняется.
+func (c *Config) migrateEnvProfiles() {
+	if c == nil || c.EnvProfiles != nil {
+		return
+	}
+	c.EnvProfiles = map[string]EnvProfile{}
+	current := EnvProfile{
+		ApiBaseUrl:     c.ApiBaseUrl,
+		ServerHost:     c.ServerHost,
+		ServerPort:     c.ServerPort,
+		SocksProxyHost: c.SocksProxyHost,
+		SocksProxyPort: c.SocksProxyPort,
+	}
+	if current == (EnvProfile{}) || current == buildDefaultProfile() {
+		c.Env = envProd
+		return
+	}
+	c.EnvProfiles[envDev] = current
+	c.Env = envDev
+}
+
+func parsePositiveInt(s string) int {
+	if s == "" {
+		return 0
+	}
+	if n, err := parseInt(s); err == nil && n > 0 {
+		return n
+	}
+	return 0
 }
 
 func parseInt(s string) (int, error) {

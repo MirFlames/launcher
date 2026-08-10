@@ -30,6 +30,10 @@ export function CheckLauncherUpdate() {
   return window['go']['main']['App']['CheckLauncherUpdate']();
 }
 
+export function GetBuildDefaults() {
+  return window['go']['main']['App']['GetBuildDefaults']();
+}
+
 export function GetConfig() {
   return window['go']['main']['App']['GetConfig']();
 }

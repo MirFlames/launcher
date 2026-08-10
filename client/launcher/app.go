@@ -49,14 +49,41 @@ func (a *App) GetConfig() (*Config, error) {
 	return cfg, err
 }
 
-// SaveConfig сохраняет настройки
+// SaveConfig сохраняет настройки.
+// Эффективные адреса всегда пересобираются из активного профиля окружения:
+// профиль — источник правды, верхнеуровневые поля — его копия для остального кода.
 func (a *App) SaveConfig(cfg *Config) error {
-	logInfo("config", "сохранение конфига: apiBase=%s server=%s:%d", cfg.ApiBaseUrl, cfg.ServerHost, cfg.ServerPort)
+	if cfg == nil {
+		return fmt.Errorf("пустой конфиг")
+	}
+	prevBase := ""
+	if prev, err := LoadConfig(); err == nil && prev != nil {
+		prevBase = normalizeBaseUrl(prev.ApiBaseUrl)
+	}
+	cfg.ApplyProfile(cfg.EnvName())
+	logInfo("config", "сохранение конфига: env=%s apiBase=%s server=%s:%d",
+		cfg.EnvName(), cfg.ApiBaseUrl, cfg.ServerHost, cfg.ServerPort)
 	if err := SaveConfig(cfg); err != nil {
 		logError("config", "ошибка сохранения конфига: %v", err)
 		return err
 	}
+	// Файл сессии один на все окружения и к бэкенду не привязан. Если оставить
+	// её при смене адреса, лаунчер пойдёт на новый бэкенд со старым session_uuid,
+	// а при недоступном бэкенде verify промолчит и протухшая сессия сойдёт за
+	// валидную. Поэтому при смене бэкенда — разлогин.
+	if newBase := normalizeBaseUrl(cfg.ApiBaseUrl); newBase != prevBase {
+		logInfo("auth", "сменился бэкенд (%q → %q) — сбрасываем локальную сессию", prevBase, newBase)
+		if err := authDeleteSession(); err != nil {
+			logError("auth", "ошибка сброса сессии при смене бэкенда: %v", err)
+		}
+	}
 	return nil
+}
+
+// GetBuildDefaults возвращает адреса, с которыми собран лаунчер (ldflags из .env).
+// Нужны настройкам, чтобы показывать их как значения прод-профиля по умолчанию.
+func (a *App) GetBuildDefaults() EnvProfile {
+	return buildDefaultProfile()
 }
 
 // AuthIsAuthenticated возвращает true если есть валидная сессия

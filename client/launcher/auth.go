@@ -123,15 +123,20 @@ func authDeleteSession() error {
 	return nil
 }
 
+// normalizeBaseUrl — канонический вид базового URL для сравнения и запросов.
+func normalizeBaseUrl(s string) string {
+	return strings.TrimSuffix(strings.TrimSpace(s), "/")
+}
+
 func getApiBaseUrl() string {
 	cfg, err := LoadConfig()
 	if err != nil || cfg == nil {
-		return strings.TrimSuffix(buildDefaultApiBaseUrl, "/")
+		return normalizeBaseUrl(buildDefaultApiBaseUrl)
 	}
 	if cfg.ApiBaseUrl == "" {
-		return strings.TrimSuffix(buildDefaultApiBaseUrl, "/")
+		return normalizeBaseUrl(buildDefaultApiBaseUrl)
 	}
-	return strings.TrimSuffix(cfg.ApiBaseUrl, "/")
+	return normalizeBaseUrl(cfg.ApiBaseUrl)
 }
 
 type authInitResp struct {

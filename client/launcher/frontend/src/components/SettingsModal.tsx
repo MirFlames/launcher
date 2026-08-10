@@ -1,5 +1,5 @@
 import {useState, useEffect} from 'react';
-import {GetConfig, GetLauncherVersion, SaveConfig} from '../../wailsjs/go/main/App';
+import {GetBuildDefaults, GetConfig, GetLauncherVersion, SaveConfig} from '../../wailsjs/go/main/App';
 import {main} from '../../wailsjs/go/models';
 import './SettingsModal.css';
 
@@ -7,6 +7,20 @@ interface SettingsModalProps {
     isOpen: boolean;
     onClose: () => void;
     onSaved?: () => void;
+}
+
+// Профили окружения: «Прод» — адреса из сборки (.env), «Dev» — адреса тестового
+// стенда. Поля ниже редактируют активный профиль; неактивный лежит в конфиге и
+// ждёт своего часа, чтобы не перепечатывать адреса при каждом переключении.
+type EnvName = 'prod' | 'dev';
+
+const ENV_PROD: EnvName = 'prod';
+const ENV_DEV: EnvName = 'dev';
+
+type EnvProfiles = Record<string, main.EnvProfile>;
+
+function portToText(port?: number): string {
+    return port != null && port > 0 ? String(port) : '';
 }
 
 export function SettingsModal({isOpen, onClose, onSaved}: SettingsModalProps) {
@@ -28,19 +42,31 @@ export function SettingsModal({isOpen, onClose, onSaved}: SettingsModalProps) {
     const [devUtmCampaign, setDevUtmCampaign] = useState('');
     const [devUtmContent, setDevUtmContent] = useState('');
     const [devLandingPath, setDevLandingPath] = useState('');
+    const [env, setEnv] = useState<EnvName>(ENV_PROD);
+    const [profiles, setProfiles] = useState<EnvProfiles>({});
+    const [buildDefaults, setBuildDefaults] = useState<main.EnvProfile | null>(null);
 
     useEffect(() => {
         if (isOpen) {
             setDevUnlocked(false);
             setDevSecretTaps(0);
+            GetBuildDefaults()
+                .then((d) => setBuildDefaults(d))
+                .catch(() => setBuildDefaults(null));
             GetConfig()
                 .then((cfg) => {
                     if (cfg) {
                         setLoadedConfig(cfg);
-                        setApiBaseUrl((cfg.apiBaseUrl || '').trim());
-                        setServerHost((cfg.server_host || '').trim());
-                        const p = cfg.server_port;
-                        setServerPort(p != null && p > 0 ? String(p) : '');
+                        const activeEnv: EnvName = cfg.env === ENV_DEV ? ENV_DEV : ENV_PROD;
+                        const loadedProfiles: EnvProfiles = {...(cfg.env_profiles || {})};
+                        setEnv(activeEnv);
+                        setProfiles(loadedProfiles);
+                        // Поля показывают активный профиль, а не эффективные значения:
+                        // пустое поле у прода = «взять из сборки» (в placeholder).
+                        const active = loadedProfiles[activeEnv];
+                        setApiBaseUrl((active?.apiBaseUrl || '').trim());
+                        setServerHost((active?.server_host || '').trim());
+                        setServerPort(portToText(active?.server_port));
                         setAuthlibInjectorDebug(!!cfg.authlib_injector_debug);
                         setSkipServerModSync(!!cfg.skip_server_mod_sync);
                         setDevMarketingSessionId((cfg.dev_marketing_session_id || '').trim());
@@ -58,6 +84,30 @@ export function SettingsModal({isOpen, onClose, onSaved}: SettingsModalProps) {
                 .catch(() => setLauncherVersion(''));
         }
     }, [isOpen]);
+
+    // Снимок полей в профиль. Socks-поля UI не показывает — переносим их как есть,
+    // иначе переключение окружения тихо стирало бы прокси активного профиля.
+    function fieldsToProfile(): main.EnvProfile {
+        const n = parseInt(serverPort.trim(), 10);
+        return main.EnvProfile.createFrom({
+            ...(profiles[env] || {}),
+            apiBaseUrl: apiBaseUrl.trim(),
+            server_host: serverHost.trim(),
+            server_port: Number.isFinite(n) && n > 0 ? n : 0,
+        });
+    }
+
+    function handleEnvSwitch(next: EnvName) {
+        if (next === env) return;
+        setError('');
+        const merged: EnvProfiles = {...profiles, [env]: fieldsToProfile()};
+        setProfiles(merged);
+        const target = merged[next];
+        setApiBaseUrl((target?.apiBaseUrl || '').trim());
+        setServerHost((target?.server_host || '').trim());
+        setServerPort(portToText(target?.server_port));
+        setEnv(next);
+    }
 
     function handleSave() {
         setError('');
@@ -88,8 +138,19 @@ export function SettingsModal({isOpen, onClose, onSaved}: SettingsModalProps) {
             return;
         }
         setSaving(true);
+        const profile = main.EnvProfile.createFrom({
+            ...(profiles[env] || {}),
+            apiBaseUrl: api,
+            server_host: host,
+            server_port: portNum,
+        });
+        const nextProfiles: EnvProfiles = {...profiles, [env]: profile};
         const cfg = main.Config.createFrom({
             ...(loadedConfig || {}),
+            env,
+            env_profiles: nextProfiles,
+            // Эффективные адреса Go всё равно пересоберёт из активного профиля
+            // (Config.ApplyProfile) — здесь они лишь для консистентности объекта.
             apiBaseUrl: api,
             server_host: host,
             server_port: portNum,
@@ -141,11 +202,44 @@ export function SettingsModal({isOpen, onClose, onSaved}: SettingsModalProps) {
                                     <strong>Только для разработки.</strong>
                                     Здесь задаётся адрес бэкенда и переопределение игрового сервера для автоподключения. Для обычной игры не открывайте этот раздел или оставьте значения по умолчанию из сборки.
                                 </div>
+                                <div className="modal-env-switch-block">
+                                    <span className="modal-env-switch-title" id="settings-env-label">Профиль подключения</span>
+                                    <div
+                                        className={`modal-env-switch${env === ENV_DEV ? ' modal-env-switch-dev' : ''}`}
+                                        role="radiogroup"
+                                        aria-labelledby="settings-env-label"
+                                    >
+                                        <button
+                                            type="button"
+                                            role="radio"
+                                            aria-checked={env === ENV_PROD}
+                                            className={`modal-env-switch-btn${env === ENV_PROD ? ' modal-env-switch-btn-active' : ''}`}
+                                            onClick={() => handleEnvSwitch(ENV_PROD)}
+                                        >
+                                            Прод
+                                        </button>
+                                        <button
+                                            type="button"
+                                            role="radio"
+                                            aria-checked={env === ENV_DEV}
+                                            className={`modal-env-switch-btn${env === ENV_DEV ? ' modal-env-switch-btn-active' : ''}`}
+                                            onClick={() => handleEnvSwitch(ENV_DEV)}
+                                        >
+                                            Dev-стенд
+                                        </button>
+                                    </div>
+                                    <p className="modal-hint modal-hint-dev">
+                                        Прод — адреса из сборки. Dev — адреса тестового стенда: введите их ниже
+                                        один раз, дальше переключайтесь одной кнопкой. Смена профиля меняет
+                                        бэкенд, поэтому потребуется войти заново.
+                                    </p>
+                                </div>
                                 <label htmlFor="settings-api-base-url">Backend API</label>
                                 <input
                                     id="settings-api-base-url"
                                     type="url"
                                     autoComplete="off"
+                                    placeholder={env === ENV_PROD ? (buildDefaults?.apiBaseUrl || 'из сборки') : 'например http://localhost:80'}
                                     value={apiBaseUrl}
                                     onChange={(e) => setApiBaseUrl(e.target.value)}
                                 />
@@ -154,7 +248,7 @@ export function SettingsModal({isOpen, onClose, onSaved}: SettingsModalProps) {
                                     id="settings-server-host"
                                     type="text"
                                     autoComplete="off"
-                                    placeholder="например 127.0.0.1"
+                                    placeholder={env === ENV_PROD ? (buildDefaults?.server_host || 'из сборки') : 'например 127.0.0.1'}
                                     value={serverHost}
                                     onChange={(e) => setServerHost(e.target.value)}
                                 />
@@ -165,7 +259,7 @@ export function SettingsModal({isOpen, onClose, onSaved}: SettingsModalProps) {
                                     type="text"
                                     inputMode="numeric"
                                     autoComplete="off"
-                                    placeholder="например 25565"
+                                    placeholder={env === ENV_PROD ? (portToText(buildDefaults?.server_port) || 'из сборки') : 'например 25565'}
                                     value={serverPort}
                                     onChange={(e) => setServerPort(e.target.value)}
                                 />

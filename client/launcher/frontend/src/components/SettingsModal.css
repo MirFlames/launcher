@@ -140,6 +140,68 @@
   max-width: 140px;
 }
 
+/* Переключатель окружения: сегментированная пара кнопок. Активный dev-стенд
+   светится тем же янтарным, что и предупреждение выше, — чтобы «я не на проде»
+   было видно сразу, без чтения адресов. */
+.modal-env-switch-block {
+  margin-bottom: 20px;
+}
+
+.modal-env-switch-title {
+  display: block;
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+
+.modal-env-switch {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.modal-env-switch-btn {
+  flex: 1;
+  padding: 8px 12px;
+  border: none;
+  border-radius: calc(var(--radius-sm) - 2px);
+  background: none;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.modal-env-switch-btn:hover:not(.modal-env-switch-btn-active) {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--color-text);
+}
+
+.modal-env-switch-btn-active {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.modal-env-switch-dev {
+  border-color: rgba(251, 191, 36, 0.35);
+}
+
+.modal-env-switch-dev .modal-env-switch-btn-active {
+  background: rgba(251, 191, 36, 0.16);
+  color: rgba(251, 191, 36, 0.95);
+}
+
+.modal-env-switch-btn:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
 .modal-dev-submenu-body .modal-checkbox-dev {
   margin-top: 18px;
 }
